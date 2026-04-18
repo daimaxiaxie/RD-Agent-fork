@@ -147,6 +147,12 @@ def main(
         quant_loop = QuantRDLoop(QUANT_PROP_SETTING)
     else:
         quant_loop = QuantRDLoop.load(path, checkout=checkout)
+        # If --all-duration is provided, reset the timer with the new duration                                                           
+        # This overrides the loaded (possibly expired) session timer                                                                   
+        if all_duration is not None:                                                                                                     
+            from rdagent.log.timer import RD_Agent_TIMER_wrapper                                                                         
+                                                                                                                                         
+            RD_Agent_TIMER_wrapper.timer.reset(all_duration=all_duration)
     quant_loop._init_base_features(base_features_path)
     if "user_interaction_queues" in kwargs and kwargs["user_interaction_queues"] is not None:
         quant_loop._set_interactor(*kwargs["user_interaction_queues"])
