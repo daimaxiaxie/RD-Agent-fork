@@ -26,6 +26,7 @@ from rdagent.app.finetune.llm.loop import main as llm_finetune
 from rdagent.app.general_model.general_model import (
     extract_models_and_implement as general_model,
 )
+from rdagent.app.ethusdt_rd_loop.factor import main as ethusdt_factor
 from rdagent.app.qlib_rd_loop.factor import main as fin_factor
 from rdagent.app.qlib_rd_loop.factor_from_report import main as fin_factor_report
 from rdagent.app.qlib_rd_loop.model import main as fin_model
@@ -110,6 +111,17 @@ def fin_quant_cli(
     checkout: CheckoutOption = True,
 ):
     fin_quant(path=path, step_n=step_n, loop_n=loop_n, all_duration=all_duration, checkout=checkout)
+
+
+@app.command(name="ethusdt_factor")
+def ethusdt_factor_cli(
+    path: Optional[str] = None,
+    step_n: Optional[int] = None,
+    loop_n: Optional[int] = None,
+    all_duration: Optional[str] = None,
+    checkout: CheckoutOption = True,
+):
+    ethusdt_factor(path=path, step_n=step_n, loop_n=loop_n, all_duration=all_duration, checkout=checkout)
 
 
 @app.command(name="fin_factor_report")

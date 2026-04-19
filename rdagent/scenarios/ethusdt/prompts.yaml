@@ -1,0 +1,197 @@
+background: |-
+  You are a quantitative trader focusing on ETH/USDT cryptocurrency perpetual futures.
+  Your goal is to discover alpha factors that can predict price movements in the ETH/USDT market.
+  The data you have includes daily OHLCV (Open, High, Low, Close, Volume) data for ETH/USDT.
+  Cryptocurrency markets trade 24/7, and factors should account for the unique characteristics of crypto markets, such as higher volatility, different market microstructure, and the impact of leverage and funding rates.
+  Focus on factors that are applicable to single-asset time series (ETH/USDT) rather than cross-sectional stock comparison.
+
+output_format: |-
+  The output of your code should be a DataFrame with a MultiIndex (datetime, instrument) saved as `result.h5`.
+  Since this is a single-asset scenario (ETH/USDT), the instrument level is always "ETHUSDT".
+  The columns should be the factor values you computed.
+
+interface: |-
+  You should write a Python class `feature_engineering_cls` that reads `daily_pv.h5` from the current directory
+  and outputs factor values as a pandas DataFrame with MultiIndex (datetime, instrument).
+
+simulator: |-
+  Your code will be executed in a sandboxed Python environment. The combined factor data will be saved and
+  evaluated using a LightGBM backtest pipeline. Key metrics include IC (Information Coefficient),
+  annualized return, and max drawdown.
+
+experiment_setting: |-
+  Experiment settings:
+  Train segment: {{ train_start }} to {{ train_end }}
+  Valid segment: {{ valid_start }} to {{ valid_end }}
+  Test segment: {{ test_start }} to {{ test_end }}
+
+hypothesis_and_feedback: |-
+  =========================================================
+  {% for experiment, feedback in trace.hist %}
+  # Trial {{ loop.index }}:
+  ## Hypothesis
+  {{ experiment.hypothesis }}
+  ## Specific task:
+  {% for task in experiment.sub_tasks %}
+  {% if task is not none and task.get_task_brief_information is defined %}
+  {{ task.get_task_brief_information() }}
+  {% endif %}
+  {% endfor %}
+  ## Backtest Analysis and Feedback:
+  {% if experiment.result is not none %}
+  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  {% endif %}
+  Observation: {{ feedback.observations }}
+  Hypothesis Evaluation: {{ feedback.hypothesis_evaluation }}
+  Decision (Whether the hypothesis was successful): {{ feedback.decision }}
+  =========================================================
+  {% endfor %}
+
+last_hypothesis_and_feedback: |-
+  ## Hypothesis
+  {{ experiment.hypothesis }}
+  ## Specific task:
+  {% for task in experiment.sub_tasks %}
+  {% if task is not none and task.get_task_brief_information is defined %}
+  {{ task.get_task_brief_information() }}
+  {% endif %}
+  {% endfor %}
+  ## Backtest Analysis and Feedback:
+  {% if experiment.result is not none %}
+  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  {% endif %}
+  Training Log:
+  Here, you need to focus on analyzing whether there are any issues with the training. If any problems are identified, you must correct them in the next iteration and clearly describe how the changes will be made in the hypothesis.
+  {{ experiment.stdout }}
+  Observation: {{ feedback.observations }}
+  Evaluation: {{ feedback.hypothesis_evaluation }}
+  Decision (Whether this experiment is SOTA): {{ feedback.decision }}
+  New Hypothesis (Given in feedback stage, just for reference, and can be accepted or rejected in the next round): {{ feedback.new_hypothesis }}
+  Reasoning (Justification for the new hypothesis): {{ feedback.reason }}
+
+sota_hypothesis_and_feedback: |-
+  ## Hypothesis
+  {{ experiment.hypothesis }}
+  ## Specific task:
+  {% for task in experiment.sub_tasks %}
+  {% if task is not none and task.get_task_brief_information is defined %}
+  {{ task.get_task_brief_information() }}
+  {% endif %}
+  {% endfor %}
+  ## Backtest Analysis and Feedback:
+  {% if experiment.result is not none %}
+  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  {% endif %}
+  Training Log: {{ experiment.stdout }}
+  Observation: {{ feedback.observations }}
+  Evaluation: {{ feedback.hypothesis_evaluation }}
+  Decision (Whether this experiment is SOTA): {{ feedback.decision }}
+
+hypothesis_output_format: |-
+  The output should follow JSON format. The schema is as follows:
+  {
+  "hypothesis": "An exact, testable, and innovative statement derived from previous experimental trace analysis. Avoid overly general ideas and ensure precision. The hypothesis should clearly specify the exact approach and expected improvement in performance in two or three sentences.",
+  "reason": "Provide a clear, logical explanation for why this hypothesis was proposed, grounded in evidence (e.g., trace history, domain principles). Reason should be short with no more than two sentences.",
+  }
+
+factor_hypothesis_output_format: |-
+  The output should follow JSON format. The schema is as follows:
+  {
+  "hypothesis": "The new hypothesis generated based on the information provided. Limit in two or three sentences.",
+  "reason": "The reason why you generate this hypothesis. It should be comprehensive and logical. It should cover the other keys below and extend them. Limit in two or three sentences.",
+  }
+
+factor_hypothesis_specification: |-
+  1. **1-5 Factors per Generation:**
+    - Ensure each generation produces 1-5 factors.
+    - Balance simplicity and complexity to build a robust factor library.
+  2. **Simple and Effective Factors First:**
+    - Start with factors that are simple, easy to achieve and likely effective.
+    - Concisely explain why these factors are expected to work.
+    - Consider crypto-specific patterns: momentum, mean reversion, volatility clustering, volume-price relationships.
+  3. **Gradual Complexity Increase:**
+    - Introduce more complex factors as more experimental results are gathered.
+    - Combine factors only after simpler ones are tested and validated.
+  4. **Crypto Market Context:**
+    - ETH/USDT trades 24/7 — consider rolling windows that account for continuous trading.
+    - Crypto markets exhibit stronger momentum and mean-reversion cycles than traditional equities.
+    - Volume is a particularly important signal in crypto markets.
+  5. **New Directions and Optimizations:**
+    - If multiple consecutive iterations fail to produce factors surpassing SOTA, consider switching to a new direction.
+    - No matter how many factors you plan to generate, only reply with one set of hypothesis and reason.
+
+factor_experiment_output_format: |-
+  The output should follow JSON format. The schema is as follows:
+  {
+      "factor name 1": {
+          "description": "description of factor 1, start with its type, e.g. [Momentum Factor]",
+          "formulation": "latex formulation of factor 1",
+          "variables": {
+              "variable or function name 1": "description of variable or function 1",
+              "variable or function name 2": "description of variable or function 2"
+          }
+      },
+      "factor name 2": {
+          "description": "description of factor 2, start with its type, e.g. [Volume-Price Factor]",
+          "formulation": "latex formulation of factor 2",
+          "variables": {
+              "variable or function name 1": "description of variable or function 1",
+              "variable or function name 2": "description of variable or function 2"
+          }
+      }
+  }
+
+factor_feedback_generation:
+  system: |-
+    You are a professional financial result analysis assistant in data-driven R&D.
+    The task is described in the following scenario:
+
+    {{ scenario }}
+
+    You will receive a hypothesis, multiple tasks with their factors, their results, and the SOTA result.
+    Your feedback should specify whether the current result supports or refutes the hypothesis, compare it with previous SOTA (State of the Art) results, and suggest improvements or new directions.
+
+    Please understand the following operation logic and then make your feedback that is suitable for the scenario:
+      1. Logic Explanation:
+        a) All factors that have surpassed SOTA in previous attempts will be included in the SOTA factor library.
+        b) New experiments will generate new factors, which will be combined with the factors in the SOTA library.
+        c) These combined factors will be backtested and compared against the current SOTA to enable continuous iteration.
+      2. Development Directions:
+        a) New Direction: Propose a new factor direction for exploration and development.
+        b) Optimization of Existing Direction:
+          - Suggest further improvements to that factor.
+          - Avoid re-implementing previous factors as those that surpassed SOTA are already included in the factor library.
+      3. Final Goal: To continuously accumulate factors that surpass each iteration to maintain the best SOTA.
+
+    When judging the results:
+      1. Any small improvement should be considered for inclusion as SOTA.
+      2. If the new factor(s) shows an improvement in the annualized return, recommend it to replace the current best result.
+
+    Please provide detailed and constructive feedback for future exploration.
+    Respond in JSON format. Example JSON structure for Result Analysis:
+    {
+      "Observations": "Your overall observations here",
+      "Feedback for Hypothesis": "Observations related to the hypothesis",
+      "New Hypothesis": "Your new hypothesis here",
+      "Reasoning": "Reasoning for the new hypothesis",
+      "Replace Best Result": "yes or no"
+    }
+  user: |-
+    Target hypothesis:
+    {{ hypothesis_text }}
+    Tasks and Factors:
+    {% for task in task_details %}
+      - {{ task.factor_name }}: {{ task.factor_description }}
+        - Factor Formulation: {{ task.factor_formulation }}
+        - Variables: {{ task.variables }}
+        - Factor Implementation: {{ task.factor_implementation }}
+        {% if task.factor_implementation == "False" %}
+        **Note: This factor was not implemented in the current experiment. Only the hypothesis for implemented factors can be verified.**
+        {% endif %}
+    {% endfor %}
+    Combined Results:
+    {{ combined_result }}
+
+    Analyze the combined result in the context of its ability to:
+    1. Support or refute the hypothesis.
+    2. Show improvement or deterioration compared to the SOTA experiment.
