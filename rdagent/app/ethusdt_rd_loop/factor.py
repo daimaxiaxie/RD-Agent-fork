@@ -27,6 +27,18 @@ class FactorRDLoop(RDLoop):
         return exp
 
 
+def _check_data_ready() -> None:
+    from rdagent.components.coder.factor_coder.config import FACTOR_COSTEER_SETTINGS
+
+    data_folder = Path(FACTOR_COSTEER_SETTINGS.data_folder)
+    source_file = data_folder / ETHUSDT_FACTOR_PROP_SETTING.source_data_file
+    if not source_file.exists():
+        raise FileNotFoundError(
+            f"Source data file not found: {source_file}\n"
+            f"Please download the data first and place it under {data_folder}/"
+        )
+
+
 def main(
     path: Optional[str] = None,
     step_n: Optional[int] = None,
@@ -37,6 +49,8 @@ def main(
 ):
     if not kwargs.get("checkout_path") is None:
         checkout = Path(kwargs["checkout_path"])
+
+    _check_data_ready()
 
     if path is None:
         factor_loop = FactorRDLoop(ETHUSDT_FACTOR_PROP_SETTING)
