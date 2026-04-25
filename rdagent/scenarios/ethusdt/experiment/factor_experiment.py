@@ -27,7 +27,7 @@ class ETHUSDTFactorScenario(Scenario):
         super().__init__()
         self.input_shape = self._infer_input_shape()
         self._background = deepcopy(
-            T(".prompts:background").r(
+            T("scenarios.ethusdt.prompts:background").r(
                 runtime_environment=self.get_runtime_environment(),
                 label_horizon_seconds=ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds,
             )
@@ -36,14 +36,14 @@ class ETHUSDTFactorScenario(Scenario):
             f"Second-level cryptocurrency OHLCV data is stored in `{ETHUSDT_FACTOR_PROP_SETTING.source_data_file}` "
             "as a MultiIndex DataFrame `(datetime, instrument)` with columns `$open`, `$close`, `$high`, `$low`, `$volume`, `$factor`."
         )
-        self._output_format = deepcopy(T(".prompts:output_format").r())
-        self._interface = deepcopy(T(".prompts:interface").r())
+        self._output_format = deepcopy(T("scenarios.ethusdt.prompts:output_format").r())
+        self._interface = deepcopy(T("scenarios.ethusdt.prompts:interface").r())
         self._simulator = deepcopy(
-            T(".prompts:simulator").r(label_horizon_seconds=ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds)
+            T("scenarios.ethusdt.prompts:simulator").r(label_horizon_seconds=ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds)
         )
         self._rich_style_description = "Cryptocurrency second-level factor discovery scenario."
         self._experiment_setting = deepcopy(
-            T(".prompts:experiment_setting").r(
+            T("scenarios.ethusdt.prompts:experiment_setting").r(
                 train_start=ETHUSDT_FACTOR_PROP_SETTING.train_start,
                 train_end=ETHUSDT_FACTOR_PROP_SETTING.train_end,
                 valid_start=ETHUSDT_FACTOR_PROP_SETTING.valid_start,
