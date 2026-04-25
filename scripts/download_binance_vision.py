@@ -4,15 +4,16 @@ Download Binance klines from data.binance.vision (Public Data) and convert to RD
 
 Supports all intervals including 1s (spot only for 1s).
 Downloads one month/day at a time, processes it, then deletes the zip to save disk.
+Writes to h5 incrementally (append mode) to keep memory usage low.
 
 Usage:
     # Spot 1s klines → crypto_1s.h5 (default, for ETHUSDT scenario)
-    python scripts/download_binance_public.py
+    python scripts/download_binance_vision.py
 
     # Other timeframes / date ranges
-    python scripts/download_binance_public.py --timeframe 1m
-    python scripts/download_binance_public.py --start 2025-01-01 --end 2025-12-31
-    python scripts/download_binance_public.py --type um --timeframe 1m  # futures
+    python scripts/download_binance_vision.py --timeframe 1m
+    python scripts/download_binance_vision.py --start 2025-01-01 --end 2025-12-31
+    python scripts/download_binance_vision.py --type um --timeframe 1m  # futures
 """
 
 import argparse
@@ -40,18 +41,12 @@ _KLINE_COLUMNS = [
 ]
 RDAGENT_COLS = ["$open", "$close", "$high", "$low", "$volume", "$factor"]
 
-log = logging.getLogger("download_binance_public")
+log = logging.getLogger("download_binance_vision")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _symbol_to_instrument(symbol: str) -> str:
     return symbol.replace("/", "")
-
-
-def _save_hdf(df: pd.DataFrame, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_hdf(path, key=HDF_KEY, mode="w")
-    log.info("Saved %s rows to %s", len(df), path)
 
 
 def _to_rdagent_format(df: pd.DataFrame, instrument: str) -> pd.DataFrame:
@@ -68,32 +63,53 @@ def _to_rdagent_format(df: pd.DataFrame, instrument: str) -> pd.DataFrame:
 
 def _build_urls(symbol: str, interval: str, trading_type: str,
                 start: str, end: str) -> list[tuple[str, str]]:
-    """Build (url, label) pairs for monthly + daily zip files."""
+    """Build (url, label) pairs. Uses monthly for complete months, daily only for partial months."""
     urls = []
     start_dt = pd.Timestamp(start)
     end_dt = pd.Timestamp(end)
     prefix = "data/spot" if trading_type == "spot" else f"data/futures/{trading_type}"
+    sym = symbol.upper()
 
-    # Monthly files
-    current = start_dt.replace(day=1)
-    while current <= end_dt:
-        filename = f"{symbol.upper()}-{interval}-{current.strftime('%Y-%m')}.zip"
-        url = f"{BASE_URL}/{prefix}/monthly/klines/{symbol.upper()}/{interval}/{filename}"
+    # Determine which months are complete (fully inside [start, end])
+    first_full = start_dt.replace(day=1)
+    if start_dt > first_full:
+        first_full += pd.DateOffset(months=1)
+
+    last_full = end_dt.replace(day=1)
+    # end month is complete only if end_dt covers through month end
+    month_end = last_full + pd.DateOffset(months=1) - pd.Timedelta(days=1)
+    if end_dt < month_end:
+        last_full -= pd.DateOffset(months=1)
+
+    # Partial start month — use daily files
+    if start_dt < first_full:
+        for d in pd.date_range(start_dt, min(first_full - pd.Timedelta(days=1), end_dt), freq="D"):
+            filename = f"{sym}-{interval}-{d.strftime('%Y-%m-%d')}.zip"
+            url = f"{BASE_URL}/{prefix}/daily/klines/{sym}/{interval}/{filename}"
+            urls.append((url, f"daily_{d.strftime('%Y-%m-%d')}"))
+
+    # Complete months — use monthly files
+    current = first_full
+    while current <= last_full:
+        filename = f"{sym}-{interval}-{current.strftime('%Y-%m')}.zip"
+        url = f"{BASE_URL}/{prefix}/monthly/klines/{sym}/{interval}/{filename}"
         urls.append((url, f"monthly_{current.strftime('%Y-%m')}"))
         current += pd.DateOffset(months=1)
 
-    # Daily files (covers partial months and most recent data not yet in monthly)
-    dates = pd.date_range(start_dt, end_dt, freq="D")
-    for d in dates:
-        filename = f"{symbol.upper()}-{interval}-{d.strftime('%Y-%m-%d')}.zip"
-        url = f"{BASE_URL}/{prefix}/daily/klines/{symbol.upper()}/{interval}/{filename}"
-        urls.append((url, f"daily_{d.strftime('%Y-%m-%d')}"))
+    # Partial end month — use daily files
+    if last_full < end_dt and last_full + pd.DateOffset(months=1) > first_full:
+        partial_start = last_full + pd.DateOffset(months=1)
+        if partial_start <= end_dt:
+            for d in pd.date_range(partial_start, end_dt, freq="D"):
+                filename = f"{sym}-{interval}-{d.strftime('%Y-%m-%d')}.zip"
+                url = f"{BASE_URL}/{prefix}/daily/klines/{sym}/{interval}/{filename}"
+                urls.append((url, f"daily_{d.strftime('%Y-%m-%d')}"))
 
     return urls
 
 
 def _download_and_parse(url: str) -> pd.DataFrame | None:
-    """Download a single zip, parse CSV into DataFrame, delete zip immediately."""
+    """Download a single zip, parse CSV into DataFrame. Zip deleted after parsing."""
     try:
         resp = urllib.request.urlopen(url)
         data = resp.read()
@@ -114,7 +130,6 @@ def _download_and_parse(url: str) -> pd.DataFrame | None:
         except zipfile.BadZipFile:
             log.warning("Bad zip: %s", url)
             return None
-    # tmp dir is auto-deleted here, zip gone
 
     # Binance 1s klines use microseconds, others use milliseconds — auto-detect
     ts0 = int(df["open_time"].iloc[0])
@@ -148,41 +163,59 @@ def main():
 
     instrument = _symbol_to_instrument(args.symbol)
     out_path = Path(args.output) if args.output else OUTPUT_DIR / OUTPUT_FILE
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     urls = _build_urls(args.symbol, args.timeframe, args.type, args.start, args.end)
-    log.info("Will process %d files (monthly + daily, duplicates auto-merged)", len(urls))
+    log.info("Will process %d files", len(urls))
 
     import time
     t0 = time.time()
-    frames = []
+    total_rows = 0
+
+    # Stream to h5: append each chunk, never hold all in memory
+    store = pd.HDFStore(str(out_path), mode="w")
+    first = True
     for i, (url, label) in enumerate(urls, 1):
         df = _download_and_parse(url)
-        if df is not None:
-            frames.append(df)
-            log.info("[%d/%d] %s: %d rows", i, len(urls), label, len(df))
-        else:
+        if df is None:
             log.debug("[%d/%d] %s: skipped", i, len(urls), label)
+            continue
 
-    if not frames:
+        # Trim to requested date range
+        start_ts = pd.Timestamp(args.start, tz="UTC")
+        end_ts = pd.Timestamp(args.end, tz="UTC") + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+        df = df.loc[start_ts:end_ts]
+
+        chunk = _to_rdagent_format(df, instrument)
+        store.append(HDF_KEY, chunk, format="table", data_columns=True)
+        total_rows += len(chunk)
+        log.info("[%d/%d] %s: %d rows (total: %d)", i, len(urls), label, len(chunk), total_rows)
+
+        # Free memory immediately
+        del df, chunk
+
+    store.close()
+
+    if total_rows == 0:
         log.error("No data downloaded. Check symbol/timeframe/date range/type.")
+        out_path.unlink(missing_ok=True)
         sys.exit(1)
 
-    df = pd.concat(frames).sort_index()
-    df = df[~df.index.duplicated(keep="last")]
+    # Deduplicate (overlap between monthly edges and daily)
+    log.info("Deduplicating...")
+    store = pd.HDFStore(str(out_path), mode="r")
+    df = store.get(HDF_KEY)
+    store.close()
 
-    # Trim to exact date range
-    start_ts = pd.Timestamp(args.start, tz="UTC")
-    end_ts = pd.Timestamp(args.end, tz="UTC") + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-    df = df.loc[start_ts:end_ts]
-
-    out = _to_rdagent_format(df, instrument)
-    _save_hdf(out, out_path)
+    df = df[~df.index.duplicated(keep="last")].sort_index()
+    df.to_hdf(out_path, key=HDF_KEY, mode="w")
+    log.info("After dedup: %d rows", len(df))
 
     elapsed = time.time() - t0
     log.info("Completed in %.0fs", elapsed)
-    log.info("  Range: %s → %s", out.index.get_level_values("datetime").min(),
-             out.index.get_level_values("datetime").max())
-    log.info("  Rows:  %d", len(out))
+    log.info("  Range: %s → %s", df.index.get_level_values("datetime").min(),
+             df.index.get_level_values("datetime").max())
+    log.info("  Rows:  %d", len(df))
 
 
 if __name__ == "__main__":
