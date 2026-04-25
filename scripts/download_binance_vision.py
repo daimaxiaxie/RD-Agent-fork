@@ -116,7 +116,10 @@ def _download_and_parse(url: str) -> pd.DataFrame | None:
             return None
     # tmp dir is auto-deleted here, zip gone
 
-    df["datetime"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
+    # Binance 1s klines use microseconds, others use milliseconds — auto-detect
+    ts0 = int(df["open_time"].iloc[0])
+    unit = "us" if ts0 > 1e14 else "ms"
+    df["datetime"] = pd.to_datetime(df["open_time"], unit=unit, utc=True)
     df = df.set_index("datetime")[["open", "high", "low", "close", "volume"]]
     for col in df.columns:
         df[col] = df[col].astype(np.float64)
