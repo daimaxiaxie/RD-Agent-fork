@@ -1,26 +1,29 @@
 background: |-
-  You are a quantitative trader focusing on ETH/USDT cryptocurrency perpetual futures.
-  Your goal is to discover alpha factors that can predict price movements in the ETH/USDT market.
-  The data you have includes daily OHLCV (Open, High, Low, Close, Volume) data for ETH/USDT.
+  You are a quantitative trader focusing on cryptocurrency perpetual futures.
+  Your goal is to discover alpha factors from second-level cryptocurrency market data that predict future {{ label_horizon_seconds }}-second returns.
+  The data you have includes second-level OHLCV (Open, High, Low, Close, Volume) data for a single cryptocurrency instrument.
+  The trading context is cryptocurrency perpetual futures (refer to standard USDT-margined perpetual futures trading rules).
   Cryptocurrency markets trade 24/7, and factors should account for the unique characteristics of crypto markets, such as higher volatility, different market microstructure, and the impact of leverage and funding rates.
-  Focus on factors that are applicable to single-asset time series (ETH/USDT) rather than cross-sectional stock comparison.
+  Focus on factors that are applicable to a single-asset time series rather than cross-sectional stock comparison.
 
 output_format: |-
   The output of your code should be a DataFrame with a MultiIndex (datetime, instrument) saved as `result.h5`.
-  Since this is a single-asset scenario (ETH/USDT), the instrument level is always "ETHUSDT".
+  The index should stay aligned to the second-level timestamps in the source data.
   The columns should be the factor values you computed.
 
 interface: |-
-  You should write a Python class `feature_engineering_cls` that reads `daily_pv.h5` from the current directory
-  and outputs factor values as a pandas DataFrame with MultiIndex (datetime, instrument).
+  You should write a Python file that reads `crypto_1s.h5` from the current directory,
+  computes factor values from second-level OHLCV data, and saves them into `result.h5`
+  as a pandas DataFrame with MultiIndex (datetime, instrument).
 
 simulator: |-
-  Your code will be executed in a sandboxed Python environment. The combined factor data will be saved and
-  evaluated using a LightGBM backtest pipeline. Key metrics include IC (Information Coefficient),
-  annualized return, and max drawdown.
+  Your code will be executed in a sandboxed Python environment. The generated factor data will be merged,
+  transformed into a cryptocurrency training dataset, and evaluated with a model that predicts future {{ label_horizon_seconds }}-second returns.
+  Key metrics include IC (Information Coefficient), Rank IC, and error metrics such as RMSE.
 
 experiment_setting: |-
   Experiment settings:
+  Label horizon: future {{ label_horizon_seconds }}-second return
   Train segment: {{ train_start }} to {{ train_end }}
   Valid segment: {{ valid_start }} to {{ valid_end }}
   Test segment: {{ test_start }} to {{ test_end }}
@@ -39,7 +42,7 @@ hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  Backtest Result: {{ experiment.result.loc[["IC", "Rank IC", "RMSE"]] }}
   {% endif %}
   Observation: {{ feedback.observations }}
   Hypothesis Evaluation: {{ feedback.hypothesis_evaluation }}
@@ -58,7 +61,7 @@ last_hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  Backtest Result: {{ experiment.result.loc[["IC", "Rank IC", "RMSE"]] }}
   {% endif %}
   Training Log:
   Here, you need to focus on analyzing whether there are any issues with the training. If any problems are identified, you must correct them in the next iteration and clearly describe how the changes will be made in the hypothesis.
@@ -80,7 +83,7 @@ sota_hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  Backtest Result: {{ experiment.result.loc[["IC", "Rank IC", "RMSE"]] }}
   {% endif %}
   Training Log: {{ experiment.stdout }}
   Observation: {{ feedback.observations }}
@@ -113,10 +116,13 @@ factor_hypothesis_specification: |-
     - Introduce more complex factors as more experimental results are gathered.
     - Combine factors only after simpler ones are tested and validated.
   4. **Crypto Market Context:**
-    - ETH/USDT trades 24/7 — consider rolling windows that account for continuous trading.
+    - Cryptocurrency markets trade 24/7 — consider rolling windows that account for continuous trading.
     - Crypto markets exhibit stronger momentum and mean-reversion cycles than traditional equities.
     - Volume is a particularly important signal in crypto markets.
-  5. **New Directions and Optimizations:**
+  5. **Use the Latest Public Knowledge:**
+    - When helpful, ground new hypotheses in the latest publicly available cryptocurrency research, market structure observations, practitioner knowledge, and technical writing.
+    - Treat those materials as supporting evidence rather than a mandatory dependency.
+  6. **New Directions and Optimizations:**
     - If multiple consecutive iterations fail to produce factors surpassing SOTA, consider switching to a new direction.
     - No matter how many factors you plan to generate, only reply with one set of hypothesis and reason.
 
@@ -164,8 +170,8 @@ factor_feedback_generation:
       3. Final Goal: To continuously accumulate factors that surpass each iteration to maintain the best SOTA.
 
     When judging the results:
-      1. Any small improvement should be considered for inclusion as SOTA.
-      2. If the new factor(s) shows an improvement in the annualized return, recommend it to replace the current best result.
+      1. Any small improvement in IC or Rank IC should be considered for inclusion as SOTA.
+      2. If the new factor(s) shows an improvement in IC, recommend it to replace the current best result.
 
     Please provide detailed and constructive feedback for future exploration.
     Respond in JSON format. Example JSON structure for Result Analysis:

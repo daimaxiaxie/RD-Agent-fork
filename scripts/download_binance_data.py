@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
 """
-Download Binance OHLCV data via CCXT and convert to RD-Agent daily_pv.h5 format.
+Download Binance USDT-margined perpetual futures OHLCV data via CCXT and convert to RD-Agent format.
+
+Data source: Binance USDT-margined perpetual futures (binanceusdm exchange).
+This is NOT spot data. Symbol "ETH/USDT" here refers to the ETHUSDT perpetual futures contract.
 
 Features:
-- Downloads kline data from Binance at configurable timeframe (1m, 1h, 1d, etc.)
-- Resamples to daily OHLCV with proper MultiIndex (datetime, instrument)
-- Outputs HDF5 with key="data" matching RD-Agent's expected format
-- Extensible: swap --symbol to download any pair (ETH/USDT, ETH/USDC, BTC/USDT, etc.)
+- Downloads kline data from Binance perpetual futures at configurable timeframe (1m, 1h, 1d, etc.)
+- Outputs HDF5 with key="data" matching RD-Agent's expected MultiIndex (datetime, instrument) format
+- Extensible: swap --symbol to download any USDT-margined pair (ETH/USDT, BTC/USDT, etc.)
 - Automatic rate limiting and retry on Binance API errors
 - Resumes partial downloads via per-chunk caching
 
 Usage:
-    # ETH/USDT 1m klines → daily_pv.h5 (default, recommended)
-    python scripts/download_binance_data.py
+    # ETH/USDT perpetual futures 1s klines → crypto_1s.h5 (default, for ETHUSDT scenario)
+    python scripts/download_binance_data.py --timeframe 1s
 
     # Other pairs / timeframes
-    python scripts/download_binance_data.py --symbol ETH/USDC --timeframe 1h
+    python scripts/download_binance_data.py --symbol BTC/USDT --timeframe 1m
     python scripts/download_binance_data.py --symbol BTC/USDT --start 2025-01-01 --end 2025-12-31
-    python scripts/download_binance_data.py --timeframe 1d  # daily directly, no resample
-    python scripts/download_binance_data.py --timeframe 1s   # true second-level (slow!)
+    python scripts/download_binance_data.py --timeframe 1d  # daily, no resample
 
 Timeframe notes:
-    - 1m (default): ~220 API requests for 5 months, download in ~2 min
-    - 1s: ~13,000 API requests for 5 months, download in ~15 min (use sparingly)
+    - 1s: ~13,000 API requests for 5 months, download in ~15 min
+    - 1m: ~220 API requests for 5 months, download in ~2 min
     - 1d: ~5 API requests, near-instant (but lose intraday info)
 """
 
@@ -41,9 +42,9 @@ import pandas as pd
 # ── Constants ────────────────────────────────────────────────────────────────
 BINANCE_RATE_LIMIT_MS = 200          # min ms between kline requests
 BINANCE_KLINE_LIMIT = 1000           # max candles per request
-CHUNK_CACHE_DIR = Path("git_ignore_folder/.binance_klines_cache")
+CHUNK_CACHE_DIR = Path("git_ignore_folder/.binanceusdm_klines_cache")
 OUTPUT_DIR = Path("git_ignore_folder/factor_implementation_source_data")
-OUTPUT_FILE = "daily_pv.h5"
+OUTPUT_FILE = "crypto_1s.h5"
 HDF_KEY = "data"
 
 # Column mapping: ccxt OHLCV → RD-Agent daily_pv columns
@@ -128,15 +129,15 @@ def _fetch_klines(exchange, symbol: str, timeframe: str, since_ms: int) -> list 
 def download_klines(
     symbol: str,
     timeframe: str = "1m",
-    start: str = "2025-11-01",
+    start: str = "2025-10-31",
     end: str = "2026-03-31",
 ) -> pd.DataFrame:
     """
-    Download full kline history from Binance in paginated chunks.
+    Download full kline history from Binance perpetual futures in paginated chunks.
 
     Uses chunk-level caching to survive interruptions.
     """
-    exchange = ccxt.binance({"enableRateLimit": True})
+    exchange = ccxt.binanceusdm({"enableRateLimit": True})
     instrument = _symbol_to_instrument(symbol)
     CHUNK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -206,7 +207,7 @@ def main():
     parser.add_argument("--symbol", default="ETH/USDT", help="Trading pair (default: ETH/USDT)")
     parser.add_argument("--timeframe", default="1m",
                         help="Kline interval: 1s, 1m, 5m, 15m, 1h, 4h, 1d (default: 1m)")
-    parser.add_argument("--start", default="2025-11-01", help="Start date YYYY-MM-DD")
+    parser.add_argument("--start", default="2025-10-31", help="Start date YYYY-MM-DD (includes warmup period before training)")
     parser.add_argument("--end", default="2026-03-31", help="End date YYYY-MM-DD")
     parser.add_argument("--output", help="Output .h5 path (default: auto)")
     parser.add_argument("--keep-raw", action="store_true",
@@ -218,7 +219,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     # Validate timeframe
-    exchange = ccxt.binance()
+    exchange = ccxt.binanceusdm()
     if args.timeframe not in exchange.timeframes:
         log.error("Unsupported timeframe '%s'. Valid: %s", args.timeframe, sorted(exchange.timeframes.keys()))
         sys.exit(1)
