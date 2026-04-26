@@ -235,13 +235,14 @@ class FactorDatetimeDailyEvaluator(FactorEvaluator):
                 False,
             )
 
-        time_diff = pd.to_datetime(gen_df.index.get_level_values("datetime")).to_series().diff().dropna().unique()
-        if pd.Timedelta(minutes=1) in time_diff:
+        time_diff = pd.to_datetime(gen_df.index.get_level_values("datetime")).to_series().diff().dropna()
+        median_diff = time_diff.median()
+        if median_diff < pd.Timedelta(seconds=1):
             return (
-                "The generated dataframe is not daily. The implementation is definitely wrong. Please check the implementation.",
+                "The generated dataframe has sub-second intervals which is unexpected. Please check the implementation.",
                 False,
             )
-        return "The generated dataframe is daily.", True
+        return f"The generated dataframe has a median interval of {median_diff}.", True
 
 
 class FactorRowCountEvaluator(FactorEvaluator):
