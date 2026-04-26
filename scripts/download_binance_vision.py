@@ -59,6 +59,7 @@ def _to_rdagent_format(df: pd.DataFrame, instrument: str) -> pd.DataFrame:
     out["$factor"] = 1.0
     out.index.name = "datetime"
     out["instrument"] = instrument
+    out["instrument"] = out["instrument"].astype(object)  # avoid StringDtype → HDF5 MultiIndex error
     out = out.reset_index().set_index(["datetime", "instrument"]).sort_index()
     return out[RDAGENT_COLS]
 
