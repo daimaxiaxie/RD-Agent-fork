@@ -21,6 +21,7 @@ import logging
 import sys
 import tempfile
 import urllib.request
+import warnings
 import zipfile
 from pathlib import Path
 
@@ -169,12 +170,15 @@ def main():
     log.info("Will process %d files", len(urls))
 
     import time
+    import tables
     t0 = time.time()
     total_rows = 0
 
+    # Suppress NaturalNameWarning — column names like "$open" aren't valid Python identifiers
+    warnings.filterwarnings("ignore", category=tables.NaturalNameWarning)
+
     # Stream to h5: append each chunk, never hold all in memory
     store = pd.HDFStore(str(out_path), mode="w")
-    first = True
     for i, (url, label) in enumerate(urls, 1):
         df = _download_and_parse(url)
         if df is None:
