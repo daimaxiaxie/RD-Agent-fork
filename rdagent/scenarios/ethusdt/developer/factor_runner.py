@@ -116,6 +116,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
     def _build_env(self, exp: ETHUSDTFactorExperiment, num_features: int) -> dict[str, str]:
         env_to_use = {
             "PYTHONPATH": "./",
+            "instrument": "ETHUSDT",
             "train_start": ETHUSDT_FACTOR_PROP_SETTING.train_start,
             "train_end": ETHUSDT_FACTOR_PROP_SETTING.train_end,
             "valid_start": ETHUSDT_FACTOR_PROP_SETTING.valid_start,

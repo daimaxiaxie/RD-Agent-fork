@@ -8,10 +8,11 @@ from rdagent.core.conf import RD_AGENT_SETTINGS
 from rdagent.core.exception import FactorEmptyError
 from rdagent.core.utils import multiprocessing_wrapper
 from rdagent.log import rdagent_logger as logger
+from rdagent.components.coder.factor_coder.factor import FactorExperiment as BaseFactorExperiment
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
 
 
-def _build_base_feature_workspaces(exp: QlibFactorExperiment) -> list[FactorFBWorkspace]:
+def _build_base_feature_workspaces(exp: BaseFactorExperiment) -> list[FactorFBWorkspace]:
     workspaces: list[FactorFBWorkspace] = []
     for file_name, code in exp.base_feature_codes.items():
         workspace = FactorFBWorkspace(
@@ -128,7 +129,7 @@ def _process_message_and_df(
     return error_message
 
 
-def process_factor_data(exp_or_list: List[QlibFactorExperiment] | QlibFactorExperiment) -> pd.DataFrame:
+def process_factor_data(exp_or_list: List[BaseFactorExperiment] | BaseFactorExperiment) -> pd.DataFrame:
     """
     Process and combine factor data from experiment implementations.
 
@@ -138,14 +139,14 @@ def process_factor_data(exp_or_list: List[QlibFactorExperiment] | QlibFactorExpe
     Returns:
         pd.DataFrame: Combined factor data without NaN values.
     """
-    if isinstance(exp_or_list, QlibFactorExperiment):
+    if isinstance(exp_or_list, BaseFactorExperiment):
         exp_or_list = [exp_or_list]
     factor_dfs = []
     error_message = ""
 
     # Collect all exp's dataframes
     for exp in exp_or_list:
-        if not isinstance(exp, QlibFactorExperiment):
+        if not isinstance(exp, BaseFactorExperiment):
             continue
 
         source_name = exp.hypothesis.concise_justification if exp.hypothesis else "BASE factor files"
