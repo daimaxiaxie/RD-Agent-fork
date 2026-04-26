@@ -314,6 +314,12 @@ class LoopBase:
         while True:
             li = self.loop_idx
 
+            # exit on timer timeout before kicking off a new loop
+            if self.timer.started and self.timer.is_timeout():
+                for _ in range(RD_AGENT_SETTINGS.get_max_parallel()):
+                    self.queue.put_nowait(self.SENTINEL)
+                break
+
             # exit on loop limitation
             if self.loop_n is not None:
                 if self.loop_n <= 0:
@@ -361,8 +367,10 @@ class LoopBase:
         all_duration : str | None
             Maximum duration to run, in format accepted by the timer
         """
-        # Initialize timer if duration is provided
-        if all_duration is not None and not self.timer.started:
+        # Initialize or override timer if duration is provided
+        # When resuming a session with --all-duration, the new duration
+        # should take precedence over the stale timer from the session.
+        if all_duration is not None:
             self.timer.reset(all_duration=all_duration)
 
         if step_n is not None:
