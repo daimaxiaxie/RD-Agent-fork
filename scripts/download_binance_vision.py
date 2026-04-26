@@ -65,47 +65,19 @@ def _to_rdagent_format(df: pd.DataFrame, instrument: str) -> pd.DataFrame:
 
 def _build_urls(symbol: str, interval: str, trading_type: str,
                 start: str, end: str) -> list[tuple[str, str]]:
-    """Build (url, label) pairs. Uses monthly for complete months, daily only for partial months."""
+    """Build (url, label) pairs using monthly files only. Excess days are trimmed after download."""
     urls = []
     start_dt = pd.Timestamp(start)
     end_dt = pd.Timestamp(end)
     prefix = "data/spot" if trading_type == "spot" else f"data/futures/{trading_type}"
     sym = symbol.upper()
 
-    # Determine which months are complete (fully inside [start, end])
-    first_full = start_dt.replace(day=1)
-    if start_dt > first_full:
-        first_full += pd.DateOffset(months=1)
-
-    last_full = end_dt.replace(day=1)
-    # end month is complete only if end_dt covers through month end
-    month_end = last_full + pd.DateOffset(months=1) - pd.Timedelta(days=1)
-    if end_dt < month_end:
-        last_full -= pd.DateOffset(months=1)
-
-    # Partial start month — use daily files
-    if start_dt < first_full:
-        for d in pd.date_range(start_dt, min(first_full - pd.Timedelta(days=1), end_dt), freq="D"):
-            filename = f"{sym}-{interval}-{d.strftime('%Y-%m-%d')}.zip"
-            url = f"{BASE_URL}/{prefix}/daily/klines/{sym}/{interval}/{filename}"
-            urls.append((url, f"daily_{d.strftime('%Y-%m-%d')}"))
-
-    # Complete months — use monthly files
-    current = first_full
-    while current <= last_full:
+    current = start_dt.replace(day=1)
+    while current <= end_dt:
         filename = f"{sym}-{interval}-{current.strftime('%Y-%m')}.zip"
         url = f"{BASE_URL}/{prefix}/monthly/klines/{sym}/{interval}/{filename}"
         urls.append((url, f"monthly_{current.strftime('%Y-%m')}"))
         current += pd.DateOffset(months=1)
-
-    # Partial end month — use daily files
-    if last_full < end_dt and last_full + pd.DateOffset(months=1) > first_full:
-        partial_start = last_full + pd.DateOffset(months=1)
-        if partial_start <= end_dt:
-            for d in pd.date_range(partial_start, end_dt, freq="D"):
-                filename = f"{sym}-{interval}-{d.strftime('%Y-%m-%d')}.zip"
-                url = f"{BASE_URL}/{prefix}/daily/klines/{sym}/{interval}/{filename}"
-                urls.append((url, f"daily_{d.strftime('%Y-%m-%d')}"))
 
     return urls
 
@@ -206,18 +178,16 @@ def main():
         out_path.unlink(missing_ok=True)
         sys.exit(1)
 
-    # Deduplicate (overlap between monthly edges and daily)
-    log.info("Deduplicating...")
+    # Sort index (no dedup needed — monthly files don't overlap)
+    log.info("Sorting...")
     store = pd.HDFStore(str(out_path), mode="r")
     df = store.get(HDF_KEY)
     store.close()
 
-    df = df[~df.index.duplicated(keep="last")].sort_index()
-    # Use append+table format — put/fixed format doesn't support MultiIndex with tz-aware dtype
+    df = df.sort_index()
     store = pd.HDFStore(str(out_path), mode="w")
     store.append(HDF_KEY, df, format="table", data_columns=True)
     store.close()
-    log.info("After dedup: %d rows", len(df))
 
     elapsed = time.time() - t0
     log.info("Completed in %.0fs", elapsed)
@@ -227,14 +197,14 @@ def main():
 
     # ── Generate debug subset ──────────────────────────────────────────────────
     # Create a small subset for fast iteration during CoSTEER coding phase.
-    # Uses the last 3 days of data (same format, just shorter time range).
+    # Uses the first 3 days of data (same format, just shorter time range).
     debug_dir = DEBUG_OUTPUT_DIR
     debug_dir.mkdir(parents=True, exist_ok=True)
     debug_path = debug_dir / OUTPUT_FILE
 
-    end_ts = df.index.get_level_values("datetime").max()
-    debug_start = end_ts - pd.Timedelta(days=3)
-    debug_df = df.loc[debug_start:end_ts]
+    start_ts = df.index.get_level_values("datetime").min()
+    debug_end = start_ts + pd.Timedelta(days=3)
+    debug_df = df.loc[start_ts:debug_end]
 
     debug_df.to_hdf(str(debug_path), key=HDF_KEY, mode="w", format="table", data_columns=True)
     log.info("Debug dataset written to %s", debug_path)
