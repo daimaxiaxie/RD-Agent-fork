@@ -336,15 +336,6 @@ class LoopBase:
                 # Only kick off ExpGen when it is never kicked off before
                 await self._run_step(li)
             self.queue.put_nowait(li)  # the loop `li` has been kicked off, waiting for workers to pick it up
-
-            # Wait for the current loop to finish all steps before kicking off the next loop
-            while self.step_idx[li] < len(self.steps):
-                await asyncio.sleep(0.5)
-                if self.timer.started and self.timer.is_timeout():
-                    for _ in range(RD_AGENT_SETTINGS.get_max_parallel()):
-                        self.queue.put_nowait(self.SENTINEL)
-                    return
-
             self.loop_idx += 1
             await asyncio.sleep(0)
 
