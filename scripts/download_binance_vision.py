@@ -212,7 +212,10 @@ def main():
     store.close()
 
     df = df[~df.index.duplicated(keep="last")].sort_index()
-    df.to_hdf(out_path, key=HDF_KEY, mode="w")
+    # Use append+table format — put/fixed format doesn't support MultiIndex with tz-aware dtype
+    store = pd.HDFStore(str(out_path), mode="w")
+    store.append(HDF_KEY, df, format="table", data_columns=True)
+    store.close()
     log.info("After dedup: %d rows", len(df))
 
     elapsed = time.time() - t0
