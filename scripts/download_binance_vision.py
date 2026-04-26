@@ -159,11 +159,6 @@ def main():
             log.debug("[%d/%d] %s: skipped", i, len(urls), label)
             continue
 
-        # Trim to requested date range
-        start_ts = pd.Timestamp(args.start, tz="UTC")
-        end_ts = pd.Timestamp(args.end, tz="UTC") + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-        df = df.loc[start_ts:end_ts]
-
         chunk = _to_rdagent_format(df, instrument)
         store.append(HDF_KEY, chunk, format="table", data_columns=True)
         total_rows += len(chunk)
