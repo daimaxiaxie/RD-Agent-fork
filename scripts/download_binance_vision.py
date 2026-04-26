@@ -31,6 +31,7 @@ import pandas as pd
 # ── Constants ────────────────────────────────────────────────────────────────
 BASE_URL = "https://data.binance.vision"
 OUTPUT_DIR = Path("git_ignore_folder/factor_implementation_source_data")
+DEBUG_OUTPUT_DIR = Path("git_ignore_folder/factor_implementation_source_data_debug")
 OUTPUT_FILE = "crypto_1s.h5"
 HDF_KEY = "data"
 
@@ -223,6 +224,23 @@ def main():
     log.info("  Range: %s → %s", df.index.get_level_values("datetime").min(),
              df.index.get_level_values("datetime").max())
     log.info("  Rows:  %d", len(df))
+
+    # ── Generate debug subset ──────────────────────────────────────────────────
+    # Create a small subset for fast iteration during CoSTEER coding phase.
+    # Uses the last 3 days of data (same format, just shorter time range).
+    debug_dir = DEBUG_OUTPUT_DIR
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    debug_path = debug_dir / OUTPUT_FILE
+
+    end_ts = df.index.get_level_values("datetime").max()
+    debug_start = end_ts - pd.Timedelta(days=3)
+    debug_df = df.loc[debug_start:end_ts]
+
+    debug_df.to_hdf(str(debug_path), key=HDF_KEY, mode="w", format="table", data_columns=True)
+    log.info("Debug dataset written to %s", debug_path)
+    log.info("  Range: %s → %s", debug_df.index.get_level_values("datetime").min(),
+             debug_df.index.get_level_values("datetime").max())
+    log.info("  Rows:  %d", len(debug_df))
 
 
 if __name__ == "__main__":
