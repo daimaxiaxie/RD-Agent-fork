@@ -110,7 +110,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
 
         target_path = workspace_path / ETHUSDT_FACTOR_PROP_SETTING.prepared_dataset_file
         dataset.to_parquet(target_path, engine="pyarrow")
-        logger.info("Prepared static cryptocurrency dataset at %s with shape %s", target_path, dataset.shape)
+        logger.info(f"Prepared static cryptocurrency dataset at {target_path} with shape {dataset.shape}")
         return feature_count
 
     def _build_env(self, exp: ETHUSDTFactorExperiment, num_features: int) -> dict[str, str]:
@@ -195,7 +195,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         )
 
         if result is None:
-            logger.error("Failed to run this experiment, because %s", stdout)
+            logger.error(f"Failed to run this experiment, because {stdout}")
             raise FactorEmptyError(f"Failed to run this experiment, because {stdout}")
 
         exp.result = result
