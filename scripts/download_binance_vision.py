@@ -109,7 +109,7 @@ def _download_and_parse(url: str) -> pd.DataFrame | None:
     # Binance 1s klines use microseconds, others use milliseconds — auto-detect
     ts0 = int(df["open_time"].iloc[0])
     unit = "us" if ts0 > 1e14 else "ms"
-    df["datetime"] = pd.to_datetime(df["open_time"], unit=unit, utc=True)
+    df["datetime"] = pd.to_datetime(df["open_time"], unit=unit, utc=True).dt.tz_localize(None)
     df = df.set_index("datetime")[["open", "high", "low", "close", "volume"]]
     for col in df.columns:
         df[col] = df[col].astype(np.float64)
@@ -186,9 +186,10 @@ def main():
     store.close()
 
     df = df.sort_index()
-    store = pd.HDFStore(str(out_path), mode="w")
-    store.append(HDF_KEY, df, format="table", data_columns=True)
-    store.close()
+    # Use fixed format for the final file (same as fin_factor's generate.py)
+    # to preserve object dtype — table format causes pandas 2.x to infer
+    # StringDtype on read, breaking to_hdf in LLM-generated factor code.
+    df.to_hdf(str(out_path), key=HDF_KEY, mode="w")
 
     elapsed = time.time() - t0
     log.info("Completed in %.0fs", elapsed)
@@ -207,7 +208,7 @@ def main():
     debug_end = start_ts + pd.Timedelta(days=3)
     debug_df = df.loc[start_ts:debug_end]
 
-    debug_df.to_hdf(str(debug_path), key=HDF_KEY, mode="w", format="table", data_columns=True)
+    debug_df.to_hdf(str(debug_path), key=HDF_KEY, mode="w")
     log.info("Debug dataset written to %s", debug_path)
     log.info("  Range: %s → %s", debug_df.index.get_level_values("datetime").min(),
              debug_df.index.get_level_values("datetime").max())
