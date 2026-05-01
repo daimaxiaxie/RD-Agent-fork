@@ -65,6 +65,12 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         )
         source_df = source_df.sort_index()
 
+        # Slice to the time range needed: warmup before train_start through test_end
+        warmup = pd.Timedelta(seconds=ETHUSDT_FACTOR_PROP_SETTING.warmup_seconds)
+        slice_start = pd.Timestamp(ETHUSDT_FACTOR_PROP_SETTING.train_start) - warmup
+        slice_end = pd.Timestamp(ETHUSDT_FACTOR_PROP_SETTING.test_end) if ETHUSDT_FACTOR_PROP_SETTING.test_end else None
+        source_df = source_df.loc[slice_start:slice_end] if slice_end else source_df.loc[slice_start:]
+
         required_columns = ["$open", "$close", "$high", "$low", "$volume"]
         missing_columns = [col for col in required_columns if col not in source_df.columns]
         if missing_columns:
