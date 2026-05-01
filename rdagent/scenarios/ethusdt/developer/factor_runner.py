@@ -2,9 +2,6 @@ import gc
 from pathlib import Path
 
 import pandas as pd
-from pandarallel import pandarallel
-
-pandarallel.initialize(verbose=1)
 
 from rdagent.app.ethusdt_rd_loop.conf import ETHUSDT_FACTOR_PROP_SETTING
 from rdagent.components.coder.factor_coder.config import FACTOR_COSTEER_SETTINGS
@@ -17,28 +14,23 @@ from rdagent.scenarios.qlib.developer.utils import process_factor_data
 
 
 class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
-    def calculate_information_coefficient(
-        self, concat_feature: pd.DataFrame, SOTA_feature_column_size: int, new_feature_columns_size: int
-    ) -> pd.DataFrame:
-        res = pd.Series(index=range(SOTA_feature_column_size * new_feature_columns_size))
-        for col1 in range(SOTA_feature_column_size):
-            for col2 in range(SOTA_feature_column_size, SOTA_feature_column_size + new_feature_columns_size):
-                res.loc[col1 * new_feature_columns_size + col2 - SOTA_feature_column_size] = concat_feature.iloc[
-                    :, col1
-                ].corr(concat_feature.iloc[:, col2])
-        return res
-
     def deduplicate_new_factors(self, SOTA_feature: pd.DataFrame, new_feature: pd.DataFrame) -> pd.DataFrame:
         concat_feature = pd.concat([SOTA_feature, new_feature], axis=1)
-        ic_max = (
-            concat_feature.groupby("datetime")
-            .parallel_apply(
-                lambda x: self.calculate_information_coefficient(x, SOTA_feature.shape[1], new_feature.shape[1])
-            )
-            .mean()
-        )
-        ic_max.index = pd.MultiIndex.from_product([range(SOTA_feature.shape[1]), range(new_feature.shape[1])])
-        ic_max = ic_max.unstack().max(axis=0)
+        sota_cols = SOTA_feature.shape[1]
+        new_cols = new_feature.shape[1]
+
+        def _ic_max_per_group(group):
+            res = pd.Series(index=range(new_cols), dtype="float32")
+            for col2_idx in range(new_cols):
+                max_corr = 0.0
+                for col1_idx in range(sota_cols):
+                    c = group.iloc[:, col1_idx].corr(group.iloc[:, sota_cols + col2_idx])
+                    if abs(c) > abs(max_corr):
+                        max_corr = c
+                res.iloc[col2_idx] = abs(max_corr)
+            return res
+
+        ic_max = concat_feature.groupby("datetime").apply(_ic_max_per_group).mean()
         return new_feature.iloc[:, ic_max[ic_max < 0.99].index]
 
     def _source_data_path(self) -> Path:
@@ -76,13 +68,16 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         if missing_columns:
             raise FactorEmptyError(f"Source data is missing required columns: {missing_columns}")
 
+        float_cols = source_df.select_dtypes(include=["float64"]).columns
+        source_df[float_cols] = source_df[float_cols].astype("float32")
+
         return source_df
 
     def _build_label_frame(self, ohlcv_df: pd.DataFrame) -> pd.DataFrame:
         horizon = ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds
-        close = ohlcv_df["$close"].unstack("instrument")
-        future_return = close.shift(-horizon) / close - 1.0
-        label = future_return.stack(future_stack=True).to_frame(f"LABEL{horizon}")
+        close = ohlcv_df["$close"]
+        future_return = (close.groupby(level="instrument").shift(-horizon) / close - 1.0).astype("float32")
+        label = future_return.to_frame(f"LABEL{horizon}")
         label.columns = pd.MultiIndex.from_product([["label"], label.columns])
         return label
 
@@ -96,11 +91,11 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         # Build label first while ohlcv_df still has $-prefixed columns
         label = self._build_label_frame(ohlcv_df)
 
-        base_feature = ohlcv_df[["$open", "$close", "$high", "$low", "$volume"]].copy()
+        base_feature = ohlcv_df[["$open", "$close", "$high", "$low", "$volume"]]
         del ohlcv_df
         gc.collect()
 
-        base_feature.columns = [col.replace("$", "") for col in base_feature.columns]
+        base_feature = base_feature.rename(columns=lambda c: c.replace("$", ""))
         base_feature.columns = pd.MultiIndex.from_product([["feature"], base_feature.columns])
 
         frames = [base_feature]
@@ -121,6 +116,10 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
 
         if dataset.empty:
             raise FactorEmptyError("Prepared cryptocurrency dataset is empty after aligning features and labels.")
+
+        float64_cols = dataset.select_dtypes(include=["float64"]).columns
+        if len(float64_cols) > 0:
+            dataset[float64_cols] = dataset[float64_cols].astype("float32")
 
         target_path = workspace_path / ETHUSDT_FACTOR_PROP_SETTING.prepared_dataset_file
         dataset.to_parquet(target_path, engine="pyarrow")

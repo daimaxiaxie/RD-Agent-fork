@@ -59,8 +59,13 @@ class ETHUSDTFactorScenario(Scenario):
         if not source_path.exists():
             return (0, 6)
         try:
-            df = pd.read_hdf(source_path, key="data")
-            return df.shape
+            store = pd.HDFStore(str(source_path), mode="r")
+            try:
+                nrows = store.get_storer("data").nrows
+                ncols = len(store.get_storer("data").attrs.non_index_axes[0][1])
+            finally:
+                store.close()
+            return (nrows, ncols)
         except Exception:
             return (0, 6)
 

@@ -207,6 +207,9 @@ def main(
     if not kwargs.get("checkout_path") is None:
         checkout = Path(kwargs["checkout_path"])
 
+    from rdagent.core.conf import RD_AGENT_SETTINGS
+    RD_AGENT_SETTINGS.workspace_ckp_size_limit = 50 * 1024
+
     _check_data_ready()
 
     if path is None:
