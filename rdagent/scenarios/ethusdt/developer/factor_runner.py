@@ -57,11 +57,23 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         )
         source_df = source_df.sort_index()
 
-        # Slice to the time range needed: warmup before train_start through test_end
+        # Only keep segments needed (train/valid/test + warmup), skip gaps between them to save memory.
         warmup = pd.Timedelta(seconds=ETHUSDT_FACTOR_PROP_SETTING.warmup_seconds)
-        slice_start = pd.Timestamp(ETHUSDT_FACTOR_PROP_SETTING.train_start) - warmup
-        slice_end = pd.Timestamp(ETHUSDT_FACTOR_PROP_SETTING.test_end) if ETHUSDT_FACTOR_PROP_SETTING.test_end else None
-        source_df = source_df.loc[slice_start:slice_end] if slice_end else source_df.loc[slice_start:]
+        segments = []
+        for seg_start, seg_end in [
+            (ETHUSDT_FACTOR_PROP_SETTING.train_start, ETHUSDT_FACTOR_PROP_SETTING.train_end),
+            (ETHUSDT_FACTOR_PROP_SETTING.valid_start, ETHUSDT_FACTOR_PROP_SETTING.valid_end),
+            (ETHUSDT_FACTOR_PROP_SETTING.test_start, ETHUSDT_FACTOR_PROP_SETTING.test_end),
+        ]:
+            if seg_start is None:
+                continue
+            s = pd.Timestamp(seg_start) - warmup
+            e = pd.Timestamp(seg_end) if seg_end else None
+            segments.append(source_df.loc[s:e] if e else source_df.loc[s:])
+
+        source_df = pd.concat(segments)
+        del segments
+        source_df = source_df[~source_df.index.duplicated(keep="first")]
 
         required_columns = ["$open", "$close", "$high", "$low", "$volume"]
         missing_columns = [col for col in required_columns if col not in source_df.columns]
