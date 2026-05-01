@@ -541,6 +541,12 @@ class LoopBase:
                 continue
             if isinstance(v, multiprocessing.queues.Queue):  # interaction queues are not picklable
                 continue
+            if k == "loop_prev_out":
+                # Only keep data for the current (unfinished) loop to reduce session size.
+                # Completed loops' outputs are no longer needed for workflow execution.
+                current_li = self.loop_idx
+                res[k] = {current_li: v.get(current_li, {})}
+                continue
             res[k] = v
         return res
 
