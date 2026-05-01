@@ -7,14 +7,16 @@ background: |-
   Focus on factors that are applicable to a single-asset time series rather than cross-sectional stock comparison.
 
 output_format: |-
-  The output of your code should be a DataFrame with a MultiIndex (datetime, instrument) saved as `result.h5`.
+  The output of your code should be a DataFrame with a MultiIndex (datetime, instrument) saved as `result.h5` using `key="data"`.
   The index should stay aligned to the second-level timestamps in the source data.
   The columns should be the factor values you computed.
+  IMPORTANT: When saving to HDF5, you MUST use `key="data"`, e.g. `df.to_hdf("result.h5", key="data", mode="w")`. Do NOT use any other key.
 
 interface: |-
   You should write a Python file that reads `crypto_1s.h5` from the current directory,
   computes factor values from second-level OHLCV data, and saves them into `result.h5`
   as a pandas DataFrame with MultiIndex (datetime, instrument).
+  When saving to HDF5, you MUST use `key="data"`, e.g. `result.to_hdf("result.h5", key="data", mode="w")`. Do NOT use any other key such as "factor" or "df".
 
 simulator: |-
   Your code will be executed in a sandboxed Python environment. The generated factor data will be merged,
