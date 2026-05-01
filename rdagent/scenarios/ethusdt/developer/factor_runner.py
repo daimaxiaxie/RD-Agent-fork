@@ -38,30 +38,10 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
     def _source_data_path(self) -> Path:
         return Path(FACTOR_COSTEER_SETTINGS.data_folder) / ETHUSDT_FACTOR_PROP_SETTING.source_data_file
 
-    def _prepare_ohlcv_frame(self) -> pd.DataFrame:
-        source_path = self._source_data_path()
-        if not source_path.exists():
-            raise FactorEmptyError(f"Source data file does not exist: {source_path}")
-
-        source_df = pd.read_hdf(source_path, key="data")
-        if source_df.empty:
-            raise FactorEmptyError(f"Source data file is empty: {source_path}")
-
-        if not isinstance(source_df.index, pd.MultiIndex):
-            raise FactorEmptyError("Source data must use a MultiIndex with datetime and instrument levels.")
-
-        source_df.index = pd.MultiIndex.from_arrays(
-            [
-                pd.to_datetime(source_df.index.get_level_values("datetime")),
-                source_df.index.get_level_values("instrument").astype(str),
-            ],
-            names=["datetime", "instrument"],
-        )
-        source_df = source_df.sort_index()
-
-        # Only keep segments needed (train/valid/test + warmup), skip gaps between them to save memory.
+    def _segment_boundaries(self) -> list[tuple[pd.Timestamp, pd.Timestamp | None]]:
+        """Return (start, end) pairs for train/valid/test segments including warmup."""
         warmup = pd.Timedelta(seconds=ETHUSDT_FACTOR_PROP_SETTING.warmup_seconds)
-        segments = []
+        boundaries = []
         for seg_start, seg_end in [
             (ETHUSDT_FACTOR_PROP_SETTING.train_start, ETHUSDT_FACTOR_PROP_SETTING.train_end),
             (ETHUSDT_FACTOR_PROP_SETTING.valid_start, ETHUSDT_FACTOR_PROP_SETTING.valid_end),
@@ -71,11 +51,77 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
                 continue
             s = pd.Timestamp(seg_start) - warmup
             e = pd.Timestamp(seg_end) if seg_end else None
-            segments.append(source_df.loc[s:e] if e else source_df.loc[s:])
+            boundaries.append((s, e))
+        return boundaries
 
-        source_df = pd.concat(segments)
-        del segments
-        source_df = source_df[~source_df.index.duplicated(keep="first")]
+    def _prepare_ohlcv_frame(self) -> pd.DataFrame:
+        source_path = self._source_data_path()
+        if not source_path.exists():
+            raise FactorEmptyError(f"Source data file does not exist: {source_path}")
+
+        boundaries = self._segment_boundaries()
+
+        # Try where-based read (table format HDF5 only).
+        # For fixed format, fall back to full load + slice.
+        source_df = None
+        try:
+            segments = []
+            for s, e in boundaries:
+                where = f"datetime >= '{s}'" + (f" & datetime <= '{e}'" if e else "")
+                chunk = pd.read_hdf(source_path, key="data", where=where)
+                if not chunk.empty:
+                    segments.append(chunk)
+            if segments:
+                source_df = pd.concat(segments)
+                del segments
+                gc.collect()
+                source_df = source_df[~source_df.index.duplicated(keep="first")]
+        except (TypeError, ValueError, AttributeError):
+            # Fixed-format HDF5 — full load then slice
+            source_df = None
+
+        if source_df is None:
+            source_df = pd.read_hdf(source_path, key="data")
+            if source_df.empty:
+                raise FactorEmptyError(f"Source data file is empty: {source_path}")
+            if not isinstance(source_df.index, pd.MultiIndex):
+                raise FactorEmptyError("Source data must use a MultiIndex with datetime and instrument levels.")
+
+            source_df.index = pd.MultiIndex.from_arrays(
+                [
+                    pd.to_datetime(source_df.index.get_level_values("datetime")),
+                    source_df.index.get_level_values("instrument").astype(str),
+                ],
+                names=["datetime", "instrument"],
+            )
+
+            # Slice to only the segments needed, then drop gaps
+            datetimes = source_df.index.get_level_values("datetime")
+            mask = pd.Series(False, index=source_df.index)
+            for s, e in boundaries:
+                seg_mask = datetimes >= s
+                if e:
+                    seg_mask &= datetimes <= e
+                mask |= seg_mask
+            source_df = source_df[mask]
+            del mask, datetimes
+            gc.collect()
+
+        if not isinstance(source_df.index, pd.MultiIndex):
+            raise FactorEmptyError("Source data must use a MultiIndex with datetime and instrument levels.")
+
+        # Normalize index
+        instrument_vals = source_df.index.get_level_values("instrument")
+        if str(instrument_vals.dtype) != "object":
+            instrument_vals = instrument_vals.astype(object)
+        source_df.index = pd.MultiIndex.from_arrays(
+            [
+                pd.to_datetime(source_df.index.get_level_values("datetime")),
+                instrument_vals,
+            ],
+            names=["datetime", "instrument"],
+        )
+        source_df = source_df.sort_index()
 
         required_columns = ["$open", "$close", "$high", "$low", "$volume"]
         missing_columns = [col for col in required_columns if col not in source_df.columns]
@@ -122,7 +168,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
             feature_count += len(normalized_factors.columns)
 
         dataset = pd.concat(frames + [label], axis=1).sort_index()
-        del frames, label
+        del frames, label, combined_factors
         gc.collect()
 
         dataset = dataset.loc[:, ~dataset.columns.duplicated(keep="last")]
@@ -190,13 +236,16 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
                         "The factors generated in this round are highly similar to the previous factors. Please change the direction for creating new factors."
                     )
                 merged_factors = pd.concat([sota_factor, new_factors], axis=1).dropna()
+                del sota_factor, new_factors
             else:
                 merged_factors = new_factors
+                del sota_factor
 
             merged_factors = merged_factors.sort_index()
             merged_factors = merged_factors.loc[:, ~merged_factors.columns.duplicated(keep="last")]
             merged_factors.columns = pd.MultiIndex.from_product([["feature"], merged_factors.columns])
             combined_factors = merged_factors
+            del merged_factors
             combined_factors.to_parquet(
                 exp.experiment_workspace.workspace_path / "combined_factors_df.parquet",
                 engine="pyarrow",
@@ -209,6 +258,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
             factors = factors.loc[:, ~factors.columns.duplicated(keep="last")]
             factors.columns = pd.MultiIndex.from_product([["feature"], factors.columns])
             combined_factors = factors
+            del factors
             combined_factors.to_parquet(
                 exp.experiment_workspace.workspace_path / "combined_factors_df.parquet",
                 engine="pyarrow",
