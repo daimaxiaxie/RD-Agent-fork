@@ -76,7 +76,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         horizon = ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds
         close = ohlcv_df["$close"].unstack("instrument")
         future_return = close.shift(-horizon) / close - 1.0
-        label = future_return.stack(dropna=False, future_stack=True).to_frame(f"LABEL{horizon}")
+        label = future_return.stack(future_stack=True).to_frame(f"LABEL{horizon}")
         label.columns = pd.MultiIndex.from_product([["label"], label.columns])
         return label
 
