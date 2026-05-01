@@ -19,19 +19,21 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         sota_cols = SOTA_feature.shape[1]
         new_cols = new_feature.shape[1]
 
-        def _ic_max_per_group(group):
-            res = pd.Series(index=range(new_cols), dtype="float32")
-            for col2_idx in range(new_cols):
-                max_corr = 0.0
-                for col1_idx in range(sota_cols):
-                    c = group.iloc[:, col1_idx].corr(group.iloc[:, sota_cols + col2_idx])
-                    if abs(c) > abs(max_corr):
-                        max_corr = c
-                res.iloc[col2_idx] = abs(max_corr)
-            return res
+        # Use global column-wise correlation instead of groupby("datetime"),
+        # because single-instrument scenarios have only 1 row per datetime group,
+        # making per-group correlation undefined (degrees of freedom <= 0).
+        corr_matrix = concat_feature.corr()
+        keep_cols = []
+        for col2_idx in range(new_cols):
+            max_corr = 0.0
+            for col1_idx in range(sota_cols):
+                c = corr_matrix.iloc[col1_idx, sota_cols + col2_idx]
+                if abs(c) > abs(max_corr):
+                    max_corr = c
+            if abs(max_corr) < 0.99:
+                keep_cols.append(col2_idx)
 
-        ic_max = concat_feature.groupby("datetime").apply(_ic_max_per_group).mean()
-        return new_feature.iloc[:, ic_max[ic_max < 0.99].index]
+        return new_feature.iloc[:, keep_cols]
 
     def _source_data_path(self) -> Path:
         return Path(FACTOR_COSTEER_SETTINGS.data_folder) / ETHUSDT_FACTOR_PROP_SETTING.source_data_file
