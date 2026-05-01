@@ -18,6 +18,13 @@ interface: |-
   as a pandas DataFrame with MultiIndex (datetime, instrument).
   When saving to HDF5, you MUST use `key="data"`, e.g. `result.to_hdf("result.h5", key="data", mode="w")`. Do NOT use any other key such as "factor" or "df".
 
+  Data structure of `crypto_1s.h5`:
+  - Index: pd.MultiIndex with levels ("datetime", "instrument"). "datetime" is a Timestamp, "instrument" is a string (e.g. "ETHUSDT").
+  - Columns: "$open", "$close", "$high", "$low", "$volume", "$factor" (all float).
+  - "instrument" is an INDEX LEVEL, NOT a column. Do NOT use `df.groupby('instrument')` — use `df.groupby(level='instrument')` or `df.groupby(level=1)` instead.
+  - Do NOT use `reset_index()` unless you immediately set the MultiIndex back afterwards. If you do reset_index, ensure "instrument" is not duplicated in both index and columns before calling groupby.
+  - Recommended pattern for per-instrument operations: `df.groupby(level='instrument')["$close"].transform(...)` or `df.groupby(level=1)["$close"].rolling(...).mean()`.
+
 simulator: |-
   Your code will be executed in a sandboxed Python environment. The generated factor data will be merged,
   transformed into a cryptocurrency training dataset, and evaluated with a model that predicts future {{ label_horizon_seconds }}-second returns.
