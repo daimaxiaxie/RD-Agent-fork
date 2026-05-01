@@ -1,3 +1,4 @@
+import gc
 from pathlib import Path
 
 import pandas as pd
@@ -55,28 +56,27 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         if not isinstance(source_df.index, pd.MultiIndex):
             raise FactorEmptyError("Source data must use a MultiIndex with datetime and instrument levels.")
 
-        normalized = source_df.copy()
-        normalized.index = pd.MultiIndex.from_arrays(
+        source_df.index = pd.MultiIndex.from_arrays(
             [
-                pd.to_datetime(normalized.index.get_level_values("datetime")),
-                normalized.index.get_level_values("instrument").astype(str),
+                pd.to_datetime(source_df.index.get_level_values("datetime")),
+                source_df.index.get_level_values("instrument").astype(str),
             ],
             names=["datetime", "instrument"],
         )
-        normalized = normalized.sort_index()
+        source_df = source_df.sort_index()
 
         required_columns = ["$open", "$close", "$high", "$low", "$volume"]
-        missing_columns = [col for col in required_columns if col not in normalized.columns]
+        missing_columns = [col for col in required_columns if col not in source_df.columns]
         if missing_columns:
             raise FactorEmptyError(f"Source data is missing required columns: {missing_columns}")
 
-        return normalized
+        return source_df
 
     def _build_label_frame(self, ohlcv_df: pd.DataFrame) -> pd.DataFrame:
         horizon = ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds
         close = ohlcv_df["$close"].unstack("instrument")
         future_return = close.shift(-horizon) / close - 1.0
-        label = future_return.stack(dropna=False).to_frame(f"LABEL{horizon}")
+        label = future_return.stack(dropna=False, future_stack=True).to_frame(f"LABEL{horizon}")
         label.columns = pd.MultiIndex.from_product([["label"], label.columns])
         return label
 
@@ -87,7 +87,13 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
     ) -> int:
         ohlcv_df = self._prepare_ohlcv_frame()
 
+        # Build label first while ohlcv_df still has $-prefixed columns
+        label = self._build_label_frame(ohlcv_df)
+
         base_feature = ohlcv_df[["$open", "$close", "$high", "$low", "$volume"]].copy()
+        del ohlcv_df
+        gc.collect()
+
         base_feature.columns = [col.replace("$", "") for col in base_feature.columns]
         base_feature.columns = pd.MultiIndex.from_product([["feature"], base_feature.columns])
 
@@ -100,8 +106,10 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
             frames.append(normalized_factors)
             feature_count += len(normalized_factors.columns)
 
-        label = self._build_label_frame(ohlcv_df)
         dataset = pd.concat(frames + [label], axis=1).sort_index()
+        del frames, label
+        gc.collect()
+
         dataset = dataset.loc[:, ~dataset.columns.duplicated(keep="last")]
         dataset = dataset.dropna(subset=[("label", f"LABEL{ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds}")])
 
@@ -111,6 +119,8 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         target_path = workspace_path / ETHUSDT_FACTOR_PROP_SETTING.prepared_dataset_file
         dataset.to_parquet(target_path, engine="pyarrow")
         logger.info(f"Prepared static cryptocurrency dataset at {target_path} with shape {dataset.shape}")
+        del dataset
+        gc.collect()
         return feature_count
 
     def _build_env(self, exp: ETHUSDTFactorExperiment, num_features: int) -> dict[str, str]:
