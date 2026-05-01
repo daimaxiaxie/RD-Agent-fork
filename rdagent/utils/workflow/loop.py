@@ -385,6 +385,15 @@ class LoopBase:
             0  # if we rerun the loop, we should revert the loop index to 0 to make sure every loop is correctly kicked
         )
 
+        # Free memory from completed loops: their step outputs are no longer
+        # needed for execution, but may hold large objects (e.g. DataFrames).
+        import gc
+
+        for li in list(self.loop_prev_out.keys()):
+            if self.step_idx[li] >= len(self.steps):
+                del self.loop_prev_out[li]
+        gc.collect()
+
         tasks: list[asyncio.Task] = []
         while True:
             try:
@@ -434,6 +443,16 @@ class LoopBase:
     def dump(self, path: str | Path) -> None:
         if RD_Agent_TIMER_wrapper.timer.started:
             RD_Agent_TIMER_wrapper.timer.update_remain_time()
+
+        # Purge outputs of completed loops before serializing to reduce
+        # session file size and memory usage on subsequent loads.
+        import gc as _gc
+
+        for li in list(self.loop_prev_out.keys()):
+            if self.step_idx[li] >= len(self.steps):
+                del self.loop_prev_out[li]
+        _gc.collect()
+
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as f:
@@ -541,12 +560,6 @@ class LoopBase:
                 continue
             if isinstance(v, multiprocessing.queues.Queue):  # interaction queues are not picklable
                 continue
-            if k == "loop_prev_out":
-                # Only keep data for the current (unfinished) loop to reduce session size.
-                # Completed loops' outputs are no longer needed for workflow execution.
-                current_li = self.loop_idx
-                res[k] = {current_li: v.get(current_li, {})}
-                continue
             res[k] = v
         return res
 
@@ -554,6 +567,9 @@ class LoopBase:
         self.__dict__.update(state)
         self.queue = asyncio.Queue()
         self.semaphores = {}
+        # Ensure loop_prev_out is always a defaultdict to avoid KeyError
+        if not isinstance(self.loop_prev_out, defaultdict):
+            self.loop_prev_out = defaultdict(dict, self.loop_prev_out)
 
 
 def kill_subprocesses() -> None:
