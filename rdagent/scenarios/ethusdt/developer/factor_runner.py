@@ -90,7 +90,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
             source_df.index = pd.MultiIndex.from_arrays(
                 [
                     pd.to_datetime(source_df.index.get_level_values("datetime")),
-                    source_df.index.get_level_values("instrument").astype(str),
+                    source_df.index.get_level_values("instrument").astype("category"),
                 ],
                 names=["datetime", "instrument"],
             )
@@ -110,10 +110,9 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         if not isinstance(source_df.index, pd.MultiIndex):
             raise FactorEmptyError("Source data must use a MultiIndex with datetime and instrument levels.")
 
-        # Normalize index
-        instrument_vals = source_df.index.get_level_values("instrument")
-        if str(instrument_vals.dtype) != "object":
-            instrument_vals = instrument_vals.astype(object)
+        # Normalize index: convert instrument to category to save memory
+        # (15M rows of "ETHUSDT" as object strings costs ~770MB; as category ~15MB)
+        instrument_vals = source_df.index.get_level_values("instrument").astype("category")
         source_df.index = pd.MultiIndex.from_arrays(
             [
                 pd.to_datetime(source_df.index.get_level_values("datetime")),
