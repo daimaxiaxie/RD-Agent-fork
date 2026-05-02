@@ -53,6 +53,9 @@ hypothesis_and_feedback: |-
   {% if experiment.result is not none %}
   Backtest Result: {{ experiment.result.loc[["IC", "Rank IC", "RMSE"]] }}
   {% endif %}
+  {% if experiment.per_factor_ic %}
+  Per-Factor IC: {% for name, ic in experiment.per_factor_ic.items() %}{{ name }}(IC={{ ic.IC }}, Rank IC={{ ic["Rank IC"] }}) {% endfor %}
+  {% endif %}
   Observation: {{ feedback.observations }}
   Hypothesis Evaluation: {{ feedback.hypothesis_evaluation }}
   Decision (Whether the hypothesis was successful): {{ feedback.decision }}
@@ -71,6 +74,9 @@ last_hypothesis_and_feedback: |-
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
   Backtest Result: {{ experiment.result.loc[["IC", "Rank IC", "RMSE"]] }}
+  {% endif %}
+  {% if experiment.per_factor_ic %}
+  Per-Factor IC: {% for name, ic in experiment.per_factor_ic.items() %}{{ name }}(IC={{ ic.IC }}, Rank IC={{ ic["Rank IC"] }}) {% endfor %}
   {% endif %}
   Training Log:
   Here, you need to focus on analyzing whether there are any issues with the training. If any problems are identified, you must correct them in the next iteration and clearly describe how the changes will be made in the hypothesis.
@@ -93,6 +99,9 @@ sota_hypothesis_and_feedback: |-
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
   Backtest Result: {{ experiment.result.loc[["IC", "Rank IC", "RMSE"]] }}
+  {% endif %}
+  {% if experiment.per_factor_ic %}
+  Per-Factor IC: {% for name, ic in experiment.per_factor_ic.items() %}{{ name }}(IC={{ ic.IC }}, Rank IC={{ ic["Rank IC"] }}) {% endfor %}
   {% endif %}
   Training Log: {{ experiment.stdout }}
   Observation: {{ feedback.observations }}
@@ -207,6 +216,10 @@ factor_feedback_generation:
     Combined Results:
     {{ combined_result }}
 
-    Analyze the combined result in the context of its ability to:
+    Per-Factor Temporal IC (correlation between each individual factor and the future return label):
+    {{ per_factor_ic }}
+
+    Analyze the results in the context of their ability to:
     1. Support or refute the hypothesis.
     2. Show improvement or deterioration compared to the SOTA experiment.
+    3. Identify which individual factors contribute most (high IC/Rank IC) and which contribute little or negatively.

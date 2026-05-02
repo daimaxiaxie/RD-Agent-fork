@@ -44,6 +44,16 @@ class ETHUSDTFactorExperiment2Feedback(Experiment2Feedback):
 
         combined_result = process_results(current_result, sota_result)
 
+        # Build per-factor IC string from experiment
+        per_factor_ic = getattr(exp, "per_factor_ic", {})
+        if per_factor_ic:
+            per_factor_ic_str = "; ".join(
+                f"{name}: IC={ic['IC']:.6f}, Rank IC={ic['Rank IC']:.6f}"
+                for name, ic in per_factor_ic.items()
+            )
+        else:
+            per_factor_ic_str = "N/A"
+
         sys_prompt = T("scenarios.ethusdt.prompts:factor_feedback_generation.system").r(
             scenario=self.scen.get_scenario_all_desc()
         )
@@ -52,6 +62,7 @@ class ETHUSDTFactorExperiment2Feedback(Experiment2Feedback):
             hypothesis_text=hypothesis_text,
             task_details=tasks_factors,
             combined_result=combined_result,
+            per_factor_ic=per_factor_ic_str,
         )
 
         response = APIBackend().build_messages_and_create_chat_completion(

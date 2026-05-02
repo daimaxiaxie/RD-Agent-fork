@@ -20,6 +20,7 @@ class ETHUSDTFactorExperiment(FactorExperiment[FactorTask, QlibFBWorkspace, Fact
         self.stdout = ""
         self.base_features: dict[str, str] = {}
         self.base_feature_codes: dict[str, str] = {}
+        self.per_factor_ic: dict[str, dict[str, float]] = {}
 
 
 class ETHUSDTFactorScenario(Scenario):

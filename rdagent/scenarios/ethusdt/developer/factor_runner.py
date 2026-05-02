@@ -140,12 +140,37 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         label.columns = pd.MultiIndex.from_product([["label"], label.columns])
         return label
 
+    def _compute_per_factor_ic(
+        self,
+        new_factors: pd.DataFrame,
+        label: pd.DataFrame,
+    ) -> dict[str, dict[str, float]]:
+        label_col = ("label", f"LABEL{ETHUSDT_FACTOR_PROP_SETTING.label_horizon_seconds}")
+        label_series = label[label_col]
+        result = {}
+        for col in new_factors.columns:
+            factor_series = new_factors[col]
+            valid = factor_series.notna() & label_series.notna()
+            n_valid = valid.sum()
+            if n_valid > 1:
+                f = factor_series[valid]
+                l = label_series[valid]
+                result[str(col)] = {
+                    "IC": float(f.corr(l)),
+                    "Rank IC": float(f.rank().corr(l.rank())),
+                }
+            else:
+                result[str(col)] = {"IC": float("nan"), "Rank IC": float("nan")}
+        return result
+
     def _materialize_static_dataset(
         self,
         workspace_path: Path,
         combined_factors: pd.DataFrame | None = None,
+        ohlcv_df: pd.DataFrame | None = None,
     ) -> int:
-        ohlcv_df = self._prepare_ohlcv_frame()
+        if ohlcv_df is None:
+            ohlcv_df = self._prepare_ohlcv_frame()
 
         # Build label first while ohlcv_df still has $-prefixed columns
         label = self._build_label_frame(ohlcv_df)
@@ -213,6 +238,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
 
         combined_factors = None
         qlib_config_name = "conf_baseline.yaml"
+        new_factor_cols_for_ic: pd.DataFrame | None = None
 
         if exp.based_experiments:
             sota_factor = None
@@ -228,12 +254,15 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
             if new_factors.empty:
                 raise FactorEmptyError("Factors failed to run on the full sample, this round of experiment failed.")
 
+            new_factor_cols_for_ic = new_factors
+
             if sota_factor is not None and not sota_factor.empty:
                 new_factors = self.deduplicate_new_factors(sota_factor, new_factors)
                 if new_factors.empty:
                     raise FactorEmptyError(
                         "The factors generated in this round are highly similar to the previous factors. Please change the direction for creating new factors."
                     )
+                new_factor_cols_for_ic = new_factors
                 merged_factors = pd.concat([sota_factor, new_factors], axis=1).dropna()
                 del sota_factor, new_factors
             else:
@@ -253,6 +282,7 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
         elif exp.base_feature_codes:
             logger.info("Base feature processing ...")
             factors = process_factor_data(exp)
+            new_factor_cols_for_ic = factors
             factors = factors.sort_index()
             factors = factors.loc[:, ~factors.columns.duplicated(keep="last")]
             factors.columns = pd.MultiIndex.from_product([["feature"], factors.columns])
@@ -264,7 +294,22 @@ class ETHUSDTFactorRunner(CachedRunner[ETHUSDTFactorExperiment]):
             )
             qlib_config_name = "conf_combined_factors.yaml"
 
-        num_features = self._materialize_static_dataset(exp.experiment_workspace.workspace_path, combined_factors)
+        # Pre-load ohlcv once for both per-factor IC and dataset materialization
+        ohlcv_df = self._prepare_ohlcv_frame()
+        label = self._build_label_frame(ohlcv_df)
+
+        # Compute per-factor temporal IC before label is consumed
+        if new_factor_cols_for_ic is not None and not new_factor_cols_for_ic.empty:
+            exp.per_factor_ic = self._compute_per_factor_ic(new_factor_cols_for_ic, label)
+            del new_factor_cols_for_ic
+        else:
+            exp.per_factor_ic = {}
+        del label
+        gc.collect()
+
+        num_features = self._materialize_static_dataset(
+            exp.experiment_workspace.workspace_path, combined_factors, ohlcv_df=ohlcv_df,
+        )
         env_to_use = self._build_env(exp, num_features)
 
         logger.info("Experiment execution ...")

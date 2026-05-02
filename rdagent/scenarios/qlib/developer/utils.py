@@ -86,7 +86,7 @@ def _normalize_factor_index(df: pd.DataFrame) -> pd.DataFrame | None:
 
     normalized = df.copy()
     normalized.index = pd.MultiIndex.from_arrays(
-        [datetime_values, instrument_values],
+        [datetime_values, instrument_values.astype("category")],
         names=["datetime", "instrument"],
     )
     return normalized
