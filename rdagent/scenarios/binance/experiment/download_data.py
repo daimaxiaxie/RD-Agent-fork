@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 Download multi-coin 1h klines from Binance data.binance.vision (perpetual futures only)
-and save as HDF5 for the binance_factor scenario.
+and save as HDF5 for the binance_factor scenario. Optionally convert to Qlib binary format.
 
 Output files:
-  - hourly_pv_all.h5   full dataset (key="data")
-  - hourly_pv_debug.h5 subset: first 5 coins, 6 months around midpoint
+  - hourly_pv_all.h5       full dataset (key="data")
+  - hourly_pv_debug.h5     subset: first 5 coins, 6 months around midpoint
+  - ~/.qlib/qlib_data/crypto_data/  Qlib binary data (if --qlib flag is set)
 
 Index:  MultiIndex (datetime, instrument)
 Columns: $open, $high, $low, $close, $volume
@@ -13,10 +14,12 @@ Columns: $open, $high, $low, $close, $volume
 Usage:
     python download_data.py
     python download_data.py --start 2021-01-01 --end 2024-12-31
+    python download_data.py --qlib   # also generate Qlib binary data
 """
 
 import argparse
 import logging
+import shutil
 import tempfile
 import urllib.request
 import zipfile
@@ -27,6 +30,7 @@ import pandas as pd
 
 BASE_URL = "https://data.binance.vision"
 OUTPUT_DIR = Path(__file__).resolve().parent / "factor_data_template"
+QLIB_DATA_PATH = Path("~/.qlib/qlib_data/crypto_data").expanduser()
 
 log = logging.getLogger("download_binance_data")
 
@@ -95,12 +99,56 @@ def _download_klines_1h(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestam
     return full.loc[start_dt:end_dt]
 
 
+def generate_qlib_data(h5_path: Path, qlib_dir: Path) -> None:
+    """
+    Convert HDF5 data to Qlib binary format using DumpDataAll.
+
+    Requires qlib to be installed. If not available, logs a warning and skips.
+    """
+    try:
+        from qlib.utils.dump_bin import DumpDataAll
+    except ImportError:
+        try:
+            from qlib.scripts.dump_bin import DumpDataAll
+        except ImportError:
+            log.warning(
+                "qlib not installed or DumpDataAll not found. "
+                "Skipping Qlib binary data generation. "
+                "Run this script in the qlib Docker/conda environment with --qlib to generate it."
+            )
+            return
+
+    df = pd.read_hdf(h5_path, key="data")
+    df.columns = [c.lstrip("$") for c in df.columns]
+    df = df.reset_index().rename(columns={"datetime": "date", "instrument": "symbol"})
+
+    csv_dir = h5_path.parent / "_csv_temp"
+    csv_dir.mkdir(exist_ok=True)
+    for symbol, group in df.groupby("symbol"):
+        group[["symbol", "date", "open", "high", "low", "close", "volume"]].to_csv(
+            csv_dir / f"{symbol}.csv", index=False
+        )
+
+    dumper = DumpDataAll(
+        csv_path=str(csv_dir),
+        provider_uri=str(qlib_dir),
+        include_fields="open,high,low,close,volume",
+        symbol_field_name="symbol",
+        date_field_name="date",
+    )
+    dumper.dump()
+
+    shutil.rmtree(csv_dir, ignore_errors=True)
+    log.info("Qlib crypto data dumped to %s", qlib_dir)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download Binance perpetual futures 1h klines -> hourly_pv.h5")
     parser.add_argument("--start", default="2021-01-01")
     parser.add_argument("--end", default="2025-12-31")
     parser.add_argument("--output", help="Output path (default: factor_data_template/hourly_pv_all.h5)")
     parser.add_argument("--debug-output", help="Debug path (default: factor_data_template/hourly_pv_debug.h5)")
+    parser.add_argument("--qlib", action="store_true", help="Also generate Qlib binary data (requires qlib)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -153,6 +201,10 @@ def main():
     ]
     debug_df.to_hdf(debug_path, key="data", mode="w")
     log.info("Saved debug (%d rows, %d coins) to %s", len(debug_df), len(debug_coins), debug_path)
+
+    # Optionally generate Qlib binary data
+    if args.qlib:
+        generate_qlib_data(out_path, QLIB_DATA_PATH)
 
 
 if __name__ == "__main__":

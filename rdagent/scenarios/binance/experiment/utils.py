@@ -1,86 +1,11 @@
-import os
 import random
 import re
-import shutil
 from pathlib import Path
 
 import pandas as pd
 from jinja2 import Environment, StrictUndefined
 
 from rdagent.app.binance_rd_loop.conf import BINANCE_FACTOR_PROP_SETTING
-from rdagent.components.coder.model_coder.conf import MODEL_COSTEER_SETTINGS
-from rdagent.utils.env import QTDockerEnv, QlibCondaEnv, QlibCondaConf
-
-
-TEMPLATE_DIR = Path(__file__).parent / "factor_data_template"
-
-
-def generate_data_folder():
-    """
-    Prepare the data folders for Binance factor execution.
-
-    1. Check if factor_data_template/hourly_pv_all.h5 exists (downloaded by download_data.py).
-    2. Copy data to the data_folder and data_folder_debug directories.
-    3. Run generate_qlib_data.py inside Docker/conda to create Qlib binary data.
-    """
-    data_folder = Path(BINANCE_FACTOR_PROP_SETTING.data_folder)
-    data_folder_debug = Path(BINANCE_FACTOR_PROP_SETTING.data_folder_debug)
-
-    h5_all = TEMPLATE_DIR / "hourly_pv_all.h5"
-    h5_debug = TEMPLATE_DIR / "hourly_pv_debug.h5"
-    readme = TEMPLATE_DIR / "README.md"
-
-    # Check source data exists
-    if not h5_all.exists():
-        raise FileNotFoundError(
-            f"Binance hourly data not found at {h5_all}\n"
-            "Please run the download script first:\n"
-            "  python rdagent/scenarios/binance/experiment/download_data.py --start 2024-01-01 --end 2025-06-30"
-        )
-
-    # Copy data to data_folder (used by factor execution)
-    data_folder.mkdir(parents=True, exist_ok=True)
-    dst = data_folder / "hourly_pv.h5"
-    if not dst.exists() or os.path.getmtime(h5_all) > os.path.getmtime(dst):
-        shutil.copy2(h5_all, dst)
-    readme_dst = data_folder / "README.md"
-    if not readme_dst.exists():
-        shutil.copy2(readme, readme_dst)
-
-    # Copy debug data
-    data_folder_debug.mkdir(parents=True, exist_ok=True)
-    dst_debug = data_folder_debug / "hourly_pv.h5"
-    if h5_debug.exists():
-        if not dst_debug.exists() or os.path.getmtime(h5_debug) > os.path.getmtime(dst_debug):
-            shutil.copy2(h5_debug, dst_debug)
-    else:
-        # If no debug file, copy the full one
-        if not dst_debug.exists():
-            shutil.copy2(h5_all, dst_debug)
-    readme_dst_debug = data_folder_debug / "README.md"
-    if not readme_dst_debug.exists():
-        shutil.copy2(readme, readme_dst_debug)
-
-    # Generate Qlib binary data if not already present
-    qlib_provider = Path(BINANCE_FACTOR_PROP_SETTING.qlib_provider_uri).expanduser()
-    if not qlib_provider.exists():
-        if MODEL_COSTEER_SETTINGS.env_type == "docker":
-            qtde = QTDockerEnv()
-        elif MODEL_COSTEER_SETTINGS.env_type == "conda":
-            qtde = QlibCondaEnv(conf=QlibCondaConf())
-        else:
-            raise ValueError(f"Unknown env_type: {MODEL_COSTEER_SETTINGS.env_type}")
-        qtde.prepare()
-
-        qtde.check_output(
-            local_path=str(TEMPLATE_DIR.parent),
-            entry="python generate_qlib_data.py",
-        )
-
-        assert qlib_provider.exists(), (
-            f"Qlib crypto data not generated at {qlib_provider}. "
-            "Check generate_qlib_data.py output for errors."
-        )
 
 
 def get_file_desc(p: Path, variable_list=[]) -> str:
@@ -159,13 +84,32 @@ def get_file_desc(p: Path, variable_list=[]) -> str:
 def get_data_folder_intro(fname_reg: str = ".*", flags=0, variable_mapping=None) -> str:
     """
     Get the info of the data folder for prompting messages.
-    Auto-generates the data folder if it doesn't exist.
+    Raises FileNotFoundError if data has not been prepared.
     """
     data_folder = Path(BINANCE_FACTOR_PROP_SETTING.data_folder)
     data_folder_debug = Path(BINANCE_FACTOR_PROP_SETTING.data_folder_debug)
+    qlib_provider = Path(BINANCE_FACTOR_PROP_SETTING.qlib_provider_uri).expanduser()
 
-    if not data_folder.exists() or not data_folder_debug.exists():
-        generate_data_folder()
+    missing = []
+    if not data_folder.exists():
+        missing.append(f"  - {data_folder} (factor execution data)")
+    if not data_folder_debug.exists():
+        missing.append(f"  - {data_folder_debug} (debug data)")
+    if not qlib_provider.exists():
+        missing.append(f"  - {qlib_provider} (Qlib binary data)")
+
+    if missing:
+        raise FileNotFoundError(
+            "Binance factor data not found. Missing:\n"
+            + "\n".join(missing)
+            + "\n\nPlease prepare the data first:\n"
+            "  # Step 1: Download hourly data\n"
+            "  python rdagent/scenarios/binance/experiment/download_data.py --start 2024-01-01 --end 2025-06-30\n\n"
+            "  # Step 2: Copy data to working directories\n"
+            "  python rdagent/scenarios/binance/experiment/factor_data_template/generate.py\n\n"
+            "  # Step 3: Generate Qlib binary data (requires qlib environment)\n"
+            "  python rdagent/scenarios/binance/experiment/download_data.py --qlib"
+        )
 
     content_l = []
     for p in data_folder_debug.iterdir():
