@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 
 from rdagent.app.binance_rd_loop.conf import BINANCE_FACTOR_PROP_SETTING
-from rdagent.scenarios.binance.experiment.download_data import generate_qlib_data
+from rdagent.scenarios.binance.experiment.generate_qlib_data import generate_qlib_data
 
 TEMPLATE_DIR = Path(__file__).resolve().parent
 
