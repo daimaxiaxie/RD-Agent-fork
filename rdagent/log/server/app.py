@@ -162,6 +162,10 @@ class RDAgentTask:
                         from rdagent.app.qlib_rd_loop.quant import main as fin_quant
 
                         fin_quant(**self.kwargs)
+                    elif self.target_name == "binance_factor":
+                        from rdagent.app.binance_rd_loop.factor import main as binance_factor
+
+                        binance_factor(**self.kwargs)
                     else:
                         raise ValueError(f"Unknown target: {self.target_name}")
                 except Exception:
@@ -440,6 +444,13 @@ def upload_file():
         }
     if scenario == "Finance Whole Pipeline":
         target_name = "fin_quant"
+        kwargs = {
+            "loop_n": loop_n_val,
+            "all_duration": all_duration_val,
+            "base_features_path": str(trace_files_path),
+        }
+    if scenario == "Binance Data Building":
+        target_name = "binance_factor"
         kwargs = {
             "loop_n": loop_n_val,
             "all_duration": all_duration_val,
