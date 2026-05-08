@@ -65,8 +65,8 @@ def main():
             raise FileNotFoundError(f"dump_bin.py not found: {dump_bin}")
         cmd = [
             sys.executable, str(dump_bin), "dump_all",
-            "--csv_path", str(csv_dir),
-            "--provider_uri", str(qlib_dir),
+            "--data_path", str(csv_dir),
+            "--qlib_dir", str(qlib_dir),
             "--include_fields", "open,high,low,close,volume",
             "--symbol_field_name", "symbol",
             "--date_field_name", "date",
@@ -79,8 +79,8 @@ def main():
         print(
             "\nCSV files are ready. To generate Qlib binary data, run in your qlib environment:\n\n"
             f"  python dump_bin.py dump_all \\\n"
-            f"    --csv_path {csv_dir} \\\n"
-            f"    --provider_uri {qlib_dir} \\\n"
+            f"    --data_path {csv_dir} \\\n"
+            f"    --qlib_dir {qlib_dir} \\\n"
             f"    --include_fields open,high,low,close,volume \\\n"
             f"    --symbol_field_name symbol \\\n"
             f"    --date_field_name date\n\n"
