@@ -127,9 +127,6 @@ def main():
         raise SystemExit(1)
 
     combined = pd.concat(all_frames).sort_index().dropna(how="all")
-    combined.index = combined.index.set_levels(
-        combined.index.get_level_values("instrument").astype("category"), level="instrument"
-    )
 
     log.info("Combined: %d rows, %d instruments, %s -> %s",
              len(combined),
@@ -137,14 +134,10 @@ def main():
              combined.index.get_level_values("datetime").min(),
              combined.index.get_level_values("datetime").max())
 
-    # HDF5/PyTables does not support category in MultiIndex — convert to string for storage
-    save_df = combined.copy()
-    save_df.index = save_df.index.set_levels(
-        save_df.index.get_level_values("instrument").astype(str), level="instrument"
-    )
+    # Save full (HDF5/PyTables does not support category in MultiIndex)
     out_path = Path(args.output) if args.output else OUTPUT_DIR / "hourly_pv_all.h5"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    save_df.to_hdf(out_path, key="data", mode="w")
+    combined.to_hdf(out_path, key="data", mode="w")
     log.info("Saved to %s", out_path)
 
     # Save debug (5 coins, 6 months around midpoint)
@@ -158,11 +151,7 @@ def main():
         (combined.index.get_level_values("datetime") >= mid - pd.Timedelta(days=90)) &
         (combined.index.get_level_values("datetime") <= mid + pd.Timedelta(days=90))
     ]
-    debug_save = debug_df.copy()
-    debug_save.index = debug_save.index.set_levels(
-        debug_save.index.get_level_values("instrument").astype(str), level="instrument"
-    )
-    debug_save.to_hdf(debug_path, key="data", mode="w")
+    debug_df.to_hdf(debug_path, key="data", mode="w")
     log.info("Saved debug (%d rows, %d coins) to %s", len(debug_df), len(debug_coins), debug_path)
 
 
