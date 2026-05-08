@@ -1,7 +1,7 @@
 """
 Prepare Binance factor data for factor execution.
 
-Step 1: Copies downloaded hourly PV data into the data folders
+Step 1: Symlinks downloaded hourly PV data into the data folders
         used by the factor execution pipeline.
 Step 2: Generates Qlib binary data (requires qlib environment).
 
@@ -9,13 +9,22 @@ Usage:
     python generate.py
 """
 
-import shutil
+import os
 from pathlib import Path
 
 from rdagent.app.binance_rd_loop.conf import BINANCE_FACTOR_PROP_SETTING
 from rdagent.scenarios.binance.experiment.generate_qlib_data import generate_qlib_data
 
 TEMPLATE_DIR = Path(__file__).resolve().parent
+
+
+def _symlink(src: Path, dst: Path) -> None:
+    dst = dst.resolve()
+    if dst.exists() or dst.is_symlink():
+        if dst.resolve() == src.resolve():
+            return
+        dst.unlink()
+    os.symlink(src.resolve(), dst)
 
 
 def main():
@@ -30,22 +39,19 @@ def main():
             "  python rdagent/scenarios/binance/experiment/download_data.py --start 2024-01-01 --end 2025-06-30"
         )
 
-    # Copy to data_folder
+    # Symlink to data_folder
     data_folder = Path(BINANCE_FACTOR_PROP_SETTING.data_folder)
     data_folder.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(h5_all, data_folder / "hourly_pv.h5")
-    shutil.copy2(readme, data_folder / "README.md")
-    print(f"Copied data to {data_folder}")
+    _symlink(h5_all, data_folder / "hourly_pv.h5")
+    _symlink(readme, data_folder / "README.md")
+    print(f"Linked data to {data_folder}")
 
-    # Copy debug data
+    # Symlink debug data
     data_folder_debug = Path(BINANCE_FACTOR_PROP_SETTING.data_folder_debug)
     data_folder_debug.mkdir(parents=True, exist_ok=True)
-    if h5_debug.exists():
-        shutil.copy2(h5_debug, data_folder_debug / "hourly_pv.h5")
-    else:
-        shutil.copy2(h5_all, data_folder_debug / "hourly_pv.h5")
-    shutil.copy2(readme, data_folder_debug / "README.md")
-    print(f"Copied debug data to {data_folder_debug}")
+    _symlink(h5_debug if h5_debug.exists() else h5_all, data_folder_debug / "hourly_pv.h5")
+    _symlink(readme, data_folder_debug / "README.md")
+    print(f"Linked debug data to {data_folder_debug}")
 
     # Generate Qlib binary data (requires qlib, skips gracefully if not available)
     qlib_dir = Path(BINANCE_FACTOR_PROP_SETTING.qlib_provider_uri).expanduser()
