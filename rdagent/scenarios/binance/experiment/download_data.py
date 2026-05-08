@@ -127,6 +127,9 @@ def main():
         raise SystemExit(1)
 
     combined = pd.concat(all_frames).swaplevel().sort_index().dropna(how="all")
+    dt_idx = combined.index.get_level_values("datetime")
+    inst_idx = combined.index.get_level_values("instrument").astype("category")
+    combined.index = pd.MultiIndex.from_arrays([dt_idx, inst_idx], names=["datetime", "instrument"])
 
     log.info("Combined: %d rows, %d instruments, %s -> %s",
              len(combined),
@@ -148,7 +151,8 @@ def main():
     mid = dt_min + (dt_max - dt_min) / 2
     debug_df = combined.loc[
         combined.index.get_level_values("instrument").isin(debug_coins) &
-        combined.index.get_level_values("datetime").between(mid - pd.Timedelta(days=90), mid + pd.Timedelta(days=90))
+        (combined.index.get_level_values("datetime") >= mid - pd.Timedelta(days=90)) &
+        (combined.index.get_level_values("datetime") <= mid + pd.Timedelta(days=90))
     ]
     debug_df.to_hdf(debug_path, key="data", mode="w")
     log.info("Saved debug (%d rows, %d coins) to %s", len(debug_df), len(debug_coins), debug_path)
