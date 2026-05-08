@@ -2,58 +2,47 @@
 """
 Convert downloaded Binance hourly HDF5 data to Qlib binary format.
 
-Must be run inside a qlib-enabled environment (Docker/conda).
-Requires the data file already downloaded via download_data.py.
+Step 1: Convert HDF5 -> per-symbol CSVs (pure pandas, no qlib needed).
+Step 2: Call qlib's scripts/dump_bin.py to convert CSVs -> Qlib binary data.
+        Requires qlib repo scripts on PYTHONPATH in a qlib-enabled environment.
 
 Usage:
+    # Step 1 only (generates CSVs, prints the command for step 2):
     python generate_qlib_data.py
-    python generate_qlib_data.py --h5 path/to/hourly_pv_all.h5 --qlib-dir ~/.qlib/qlib_data/crypto_data
+
+    # Step 1 + 2 (if qlib scripts are available):
+    python generate_qlib_data.py --dump-bin /path/to/qlib/scripts/dump_bin.py
 """
 
 import argparse
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
 
+QLIB_DUMP_BIN_URL = "https://github.com/microsoft/qlib/blob/main/scripts/dump_bin.py"
 
-def generate_qlib_data(h5_path: Path, qlib_dir: Path) -> None:
-    from qlib.dump_bin import DumpDataAll
 
+def h5_to_csv(h5_path: Path, csv_dir: Path) -> None:
     df = pd.read_hdf(h5_path, key="data")
     df.columns = [c.lstrip("$") for c in df.columns]
     df = df.reset_index().rename(columns={"datetime": "date", "instrument": "symbol"})
 
-    csv_dir = h5_path.parent / "_csv_temp"
-    csv_dir.mkdir(exist_ok=True)
+    csv_dir.mkdir(parents=True, exist_ok=True)
     for symbol, grp in df.groupby("symbol"):
         grp[["symbol", "date", "open", "high", "low", "close", "volume"]].to_csv(
             csv_dir / f"{symbol}.csv", index=False
         )
-
-    DumpDataAll(
-        csv_path=str(csv_dir),
-        provider_uri=str(qlib_dir),
-        include_fields="open,high,low,close,volume",
-        symbol_field_name="symbol",
-        date_field_name="date",
-    ).dump()
-    shutil.rmtree(csv_dir, ignore_errors=True)
-    print(f"Qlib binary data generated at {qlib_dir}")
+    print(f"CSV files written to {csv_dir}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Binance HDF5 data to Qlib binary format")
-    parser.add_argument(
-        "--h5",
-        default=None,
-        help="Path to hourly_pv_all.h5 (default: factor_data_template/hourly_pv_all.h5)",
-    )
-    parser.add_argument(
-        "--qlib-dir",
-        default=None,
-        help="Output directory for Qlib binary data (default: ~/.qlib/qlib_data/crypto_data)",
-    )
+    parser.add_argument("--h5", default=None, help="Path to hourly_pv_all.h5 (default: factor_data_template/hourly_pv_all.h5)")
+    parser.add_argument("--qlib-dir", default=None, help="Output directory for Qlib binary data (default: ~/.qlib/qlib_data/crypto_data)")
+    parser.add_argument("--dump-bin", default=None, help="Path to qlib's scripts/dump_bin.py; if omitted, only CSVs are generated")
     args = parser.parse_args()
 
     default_h5 = Path(__file__).resolve().parent / "factor_data_template" / "hourly_pv_all.h5"
@@ -67,7 +56,36 @@ def main():
             "  python rdagent/scenarios/binance/experiment/download_data.py"
         )
 
-    generate_qlib_data(h5_path, qlib_dir)
+    csv_dir = h5_path.parent / "_csv_temp"
+    h5_to_csv(h5_path, csv_dir)
+
+    if args.dump_bin:
+        dump_bin = Path(args.dump_bin)
+        if not dump_bin.exists():
+            raise FileNotFoundError(f"dump_bin.py not found: {dump_bin}")
+        cmd = [
+            sys.executable, str(dump_bin), "dump_all",
+            "--csv_path", str(csv_dir),
+            "--provider_uri", str(qlib_dir),
+            "--include_fields", "open,high,low,close,volume",
+            "--symbol_field_name", "symbol",
+            "--date_field_name", "date",
+        ]
+        print(f"Running: {' '.join(cmd)}")
+        subprocess.check_call(cmd)
+        shutil.rmtree(csv_dir, ignore_errors=True)
+        print(f"Qlib binary data generated at {qlib_dir}")
+    else:
+        print(
+            "\nCSV files are ready. To generate Qlib binary data, run in your qlib environment:\n\n"
+            f"  python dump_bin.py dump_all \\\n"
+            f"    --csv_path {csv_dir} \\\n"
+            f"    --provider_uri {qlib_dir} \\\n"
+            f"    --include_fields open,high,low,close,volume \\\n"
+            f"    --symbol_field_name symbol \\\n"
+            f"    --date_field_name date\n\n"
+            f"Get dump_bin.py from: {QLIB_DUMP_BIN_URL}"
+        )
 
 
 if __name__ == "__main__":
