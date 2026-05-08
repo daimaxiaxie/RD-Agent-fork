@@ -97,8 +97,8 @@ def _download_klines_1h(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestam
 
 def main():
     parser = argparse.ArgumentParser(description="Download Binance perpetual futures 1h klines -> hourly_pv.h5")
-    parser.add_argument("--start", default="2025-01-01")
-    parser.add_argument("--end", default="2026-02-28")
+    parser.add_argument("--start", default="2021-01-01")
+    parser.add_argument("--end", default="2025-12-31")
     parser.add_argument("--output", help="Output path (default: factor_data_template/hourly_pv_all.h5)")
     parser.add_argument("--debug-output", help="Debug path (default: factor_data_template/hourly_pv_debug.h5)")
     args = parser.parse_args()
@@ -118,15 +118,15 @@ def main():
             continue
         df = df.copy()
         df["instrument"] = symbol
-        df = df.set_index(["instrument", df.index])
-        df.index.names = ["instrument", "datetime"]
+        df = df.set_index([df.index, "instrument"])
+        df.index.names = ["datetime", "instrument"]
         all_frames.append(df)
 
     if not all_frames:
         log.error("No data downloaded.")
         raise SystemExit(1)
 
-    combined = pd.concat(all_frames).swaplevel().sort_index().dropna(how="all")
+    combined = pd.concat(all_frames).sort_index().dropna(how="all")
     dt_idx = combined.index.get_level_values("datetime")
     inst_idx = combined.index.get_level_values("instrument").astype("category")
     combined.index = pd.MultiIndex.from_arrays([dt_idx, inst_idx], names=["datetime", "instrument"])
