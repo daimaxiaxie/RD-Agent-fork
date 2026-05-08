@@ -70,7 +70,7 @@ def _download_klines_1h(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestam
     current = start_dt.replace(day=1)
     while current <= end_dt:
         filename = f"{symbol}-1h-{current.strftime('%Y-%m')}.zip"
-        url = f"{BASE_URL}/data/futures/um/monthly/klines/1h/{symbol}/{filename}"
+        url = f"{BASE_URL}/data/futures/um/monthly/klines/{symbol}/1h/{filename}"
         df = _download_zip(url)
         if df is not None:
             chunks.append(df)
