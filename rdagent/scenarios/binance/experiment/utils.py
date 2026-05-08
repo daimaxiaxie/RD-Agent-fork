@@ -1,60 +1,11 @@
 import random
 import re
-import shutil
 from pathlib import Path
 
 import pandas as pd
 from jinja2 import Environment, StrictUndefined
 
 from rdagent.components.coder.factor_coder.config import FACTOR_COSTEER_SETTINGS
-from rdagent.components.coder.model_coder.conf import MODEL_COSTEER_SETTINGS
-from rdagent.utils.env import QTDockerEnv, QlibCondaEnv, QlibCondaConf
-
-
-def generate_data_folder_from_qlib():
-    template_path = Path(__file__).parent / "factor_data_template"
-    if MODEL_COSTEER_SETTINGS.env_type == "docker":
-        qtde = QTDockerEnv()
-    elif MODEL_COSTEER_SETTINGS.env_type == "conda":
-        qtde = QlibCondaEnv(conf=QlibCondaConf())
-    else:
-        raise ValueError(f"Unknown env_type: {MODEL_COSTEER_SETTINGS.env_type}")
-    qtde.prepare()
-
-    # Run the Qlib backtest
-    execute_log = qtde.check_output(
-        local_path=str(template_path),
-        entry=f"python generate.py",
-    )
-
-    assert (Path(__file__).parent / "factor_data_template" / "daily_pv_all.h5").exists(), (
-        "daily_pv_all.h5 is not generated. It means rdagent/scenarios/qlib/experiment/factor_data_template/generate.py is not executed correctly. Please check the log: \n"
-        + execute_log
-    )
-    assert (Path(__file__).parent / "factor_data_template" / "daily_pv_debug.h5").exists(), (
-        "daily_pv_debug.h5 is not generated. It means rdagent/scenarios/qlib/experiment/factor_data_template/generate.py is not executed correctly. Please check the log: \n"
-        + execute_log
-    )
-
-    Path(FACTOR_COSTEER_SETTINGS.data_folder).mkdir(parents=True, exist_ok=True)
-    shutil.copy(
-        Path(__file__).parent / "factor_data_template" / "daily_pv_all.h5",
-        Path(FACTOR_COSTEER_SETTINGS.data_folder) / "daily_pv.h5",
-    )
-    shutil.copy(
-        Path(__file__).parent / "factor_data_template" / "README.md",
-        Path(FACTOR_COSTEER_SETTINGS.data_folder) / "README.md",
-    )
-
-    Path(FACTOR_COSTEER_SETTINGS.data_folder_debug).mkdir(parents=True, exist_ok=True)
-    shutil.copy(
-        Path(__file__).parent / "factor_data_template" / "daily_pv_debug.h5",
-        Path(FACTOR_COSTEER_SETTINGS.data_folder_debug) / "daily_pv.h5",
-    )
-    shutil.copy(
-        Path(__file__).parent / "factor_data_template" / "README.md",
-        Path(FACTOR_COSTEER_SETTINGS.data_folder_debug) / "README.md",
-    )
 
 
 def get_file_desc(p: Path, variable_list=[]) -> str:
@@ -173,9 +124,11 @@ def get_data_folder_intro(fname_reg: str = ".*", flags=0, variable_mapping=None)
         not Path(FACTOR_COSTEER_SETTINGS.data_folder).exists()
         or not Path(FACTOR_COSTEER_SETTINGS.data_folder_debug).exists()
     ):
-        # FIXME: (xiao) I think this is writing in a hard-coded way.
-        # get data folder intro does not imply that we are generating the data folder.
-        generate_data_folder_from_qlib()
+        raise FileNotFoundError(
+            "Binance factor data not found. Please run manually:\n"
+            "  python rdagent/scenarios/binance/experiment/download_data.py --start 2021-01-01 --end 2024-12-31\n"
+            "Then copy hourly_pv_all.h5 and hourly_pv_debug.h5 to the data folder."
+        )
     content_l = []
     for p in Path(FACTOR_COSTEER_SETTINGS.data_folder_debug).iterdir():
         if re.match(fname_reg, p.name, flags) is not None:
