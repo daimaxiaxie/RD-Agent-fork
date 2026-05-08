@@ -1,14 +1,14 @@
 binance_factor_background: |-
-  The factor is a characteristic or variable used in quant investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of excess returns, and they are central to many quantitative investment strategies.
-  Each number in the factor represents a physics value to an instrument on a day.
-  User will train a model to predict the next several days return based on the factor values of the previous days.
+  The factor is a characteristic or variable used in quantitative cryptocurrency investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of excess returns, and they are central to many quantitative investment strategies.
+  Each number in the factor represents a numeric value for an instrument (cryptocurrency) at a given hour.
+  User will train a model to predict the next 4 hours' return based on the factor values of the previous hours.
   The factor is defined in the following parts:
   1. Name: The name of the factor.
   2. Description: The description of the factor.
   3. Formulation: The formulation of the factor.
   4. Variables: The variables or functions used in the formulation of the factor.
   The factor might not provide all the parts of the information above since some might not be applicable.
-  Please specifically give all the hyperparameter in the factors like the window size, look back period, and so on. One factor should statically defines one output with a static source data. For example, last 10 days momentum and last 20 days momentum should be two different factors.
+  Please specifically give all the hyperparameter in the factors like the window size, look back period, and so on. One factor should statically defines one output with a static source data. For example, last 10 hours momentum and last 20 hours momentum should be two different factors.
 
   {% if runtime_environment is not none %}
   ====== Runtime Environment ======
@@ -19,7 +19,23 @@ binance_factor_background: |-
 binance_factor_interface: |-
   Your python code should follow the interface to better interact with the user's system.
   Your python code should contain the following part: the import part, the function part, and the main part. You should write a main function name: "calculate_{function_name}" and call this function in "if __name__ == __main__" part. Don't write any try-except block in your python code. The user will catch the exception message and provide the feedback to you.
-  User will write your python code into a python file and execute the file directly with "python {your_file_name}.py". You should calculate the factor values and save the result into a HDF5(H5) file named "result.h5" in the same directory as your python file. The result file is a HDF5(H5) file containing a pandas dataframe. The index of the dataframe is the "datetime" and "instrument", and the single column name is the factor name,and the value is the factor value. The result file should be saved in the same directory as your python file. IMPORTANT: When saving to HDF5, you MUST use `key="data"`, e.g. `df.to_hdf("result.h5", key="data", mode="w")`. Do NOT use any other key such as "factor" or "df". NOTE: "instrument" is an INDEX LEVEL, NOT a column. Use `df.groupby(level='instrument')` or `df.groupby(level=1)` instead of `df.groupby('instrument')`. Do NOT use `reset_index()` unless you immediately restore the MultiIndex afterwards.
+  User will write your python code into a python file and execute the file directly with "python {your_file_name}.py". You should calculate the factor values and save the result into a HDF5(H5) file named "result.h5" in the same directory as your python file. The result file is a HDF5(H5) file containing a pandas dataframe. The index of the dataframe is the "datetime" and "instrument", and the single column name is the factor name,and the value is the factor value. The result file should be saved in the same directory as your python file. IMPORTANT: When saving to HDF5, you MUST use `key="data"`, e.g. `df.to_hdf("result.h5", key="data", mode="w")`. Do NOT use any other key such as "factor" or "df".
+
+  INPUT DATA FORMAT: The input data file "hourly_pv.h5" contains a pandas DataFrame with:
+  - Index: pd.MultiIndex with two levels:
+    - "datetime" (level 0): Timestamp type, hourly frequency (e.g., Timestamp('2024-01-01 00:00:00'))
+    - "instrument" (level 1): str type, cryptocurrency symbol (e.g., 'BTCUSDT', 'ETHUSDT')
+  - Columns: $open (float64), $high (float64), $low (float64), $close (float64), $volume (float64)
+
+  OUTPUT DATA FORMAT: The output "result.h5" must have the same MultiIndex structure:
+  - Index: pd.MultiIndex with levels ("datetime", "instrument") — datetime is Timestamp, instrument is str
+  - Columns: a single column named after your factor, with float64 values
+
+  IMPORTANT NOTES on index handling:
+  - "instrument" is an INDEX LEVEL, NOT a column. Use `df.groupby(level='instrument')` or `df.groupby(level=1)` instead of `df.groupby('instrument')`.
+  - Do NOT use `reset_index()` unless you immediately restore the MultiIndex afterwards.
+  - When iterating over instruments, use `for inst, group in df.groupby(level='instrument')` or `df.xs(inst, level='instrument')`.
+  - After computing the factor, ensure the output DataFrame has the exact same MultiIndex (datetime, instrument) as the input.
 
 binance_factor_strategy: |-
   Ensure that for every step of data processing, the data format (including indexes) is clearly explained through comments.
@@ -64,59 +80,60 @@ binance_factor_strategy: |-
 binance_factor_output_format: |-
   Your output should be a pandas dataframe similar to the following example information:
   <class 'pandas.core.frame.DataFrame'>
-  MultiIndex: 40914 entries, (Timestamp('2020-01-02 00:00:00'), 'SH600000') to (Timestamp('2021-12-31 00:00:00'), 'SZ300059')
+  MultiIndex: 40914 entries, (Timestamp('2024-01-02 00:00:00'), 'BTCUSDT') to (Timestamp('2024-12-31 23:00:00'), 'TIAUSDT')
   Data columns (total 1 columns):
   #   Column            Non-Null Count  Dtype
   ---  ------            --------------  -----
   0   your factor name  40914 non-null  float64
   dtypes: float64(1)
   memory usage: <ignore>
-  Notice: The non-null count is OK to be different to the total number of entries since some instruments may not have the factor value on some days.
+  Notice: The non-null count is OK to be different to the total number of entries since some instruments may not have the factor value on some hours.
   One possible format of `result.h5` may be like following (saved with `key="data"`):
-  datetime    instrument
-  2020-01-02  SZ000001     -0.001796
-              SZ000166      0.005780
-              SZ000686      0.004228
-              SZ000712      0.001298
-              SZ000728      0.005330
-                              ...
-  2021-12-31  SZ000750      0.000000
-              SZ000776      0.002459
+  datetime            instrument
+  2024-01-02 00:00:00  BTCUSDT     -0.001796
+                       ETHUSDT      0.005780
+                       SOLUSDT      0.004228
+                       BNBUSDT      0.001298
+                       XRPUSDT      0.005330
+                                      ...
+  2024-12-31 23:00:00  ADAUSDT      0.000000
+                       DOGEUSDT     0.002459
 
 binance_factor_simulator: |-
-  The factors will be sent into Qlib to train a model to predict the next several days return based on the factor values of the previous days.
+  The factors will be sent into Qlib to train a model to predict the next 4 hours' return based on the factor values of the previous hours.
   Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower research, and create value using AI technologies in quantitative investment, from exploring ideas to implementing productions. Qlib supports diverse machine learning modeling paradigms. including supervised learning, market dynamics modeling, and RL.
   User will use Qlib to automatically do the following things:
   1. generate a new factor table based on the factor values.
-  2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the next several days return based on the factor values.
-  3. build a portfolio based on the predicted return based on a strategy.
+  2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the next 4 hours' return based on the factor values.
+  3. build a portfolio based on the predicted return, rebalancing every 4 hours.
   4. evaluate the portfolio's performance including the return, sharpe ratio, max drawdown, and so on.
+  Note: The data is cryptocurrency perpetual futures hourly data from Binance, which trades 24/7 without market close.
 
 binance_factor_rich_style_description : |-
-  ### R&D Agent-Binance: Automated Quantitative Trading & Iterative Factors Evolution Demo
+  ### R&D Agent-Binance: Automated Crypto Quantitative Trading & Iterative Factors Evolution Demo
 
   #### [Overview](#_summary)
 
-  The demo showcases the iterative process of hypothesis generation, knowledge construction, and decision-making. It highlights how financial factors evolve through continuous feedback and refinement.
+  The demo showcases the iterative process of hypothesis generation, knowledge construction, and decision-making for cryptocurrency factor investing. It highlights how crypto factors evolve through continuous feedback and refinement.
 
   #### [Automated R&D](#_rdloops)
 
   - **[R (Research)](#_research)**
-    - Iterative development of ideas and hypotheses.
+    - Iterative development of ideas and hypotheses for crypto factor alpha.
     - Continuous learning and knowledge construction.
 
   - **[D (Development)](#_development)**
     - Progressive implementation and code generation of factors.
-    - Automated testing and validation of financial factors.
+    - Automated testing and validation of cryptocurrency factors.
 
   #### [Objective](#_summary)
 
-  To demonstrate the dynamic evolution of financial factors through the Qlib platform, emphasizing how each iteration enhances the accuracy and reliability of the resulting financial factors.
+  To demonstrate the dynamic evolution of cryptocurrency factors through the Qlib platform, emphasizing how each iteration enhances the accuracy and reliability of the resulting factors on Binance perpetual futures hourly data.
 
 binance_factor_experiment_setting: |-
   | Dataset 📊 | Model 🤖    | Factors 🌟       | Data Split  🧮                                   |
   |---------|----------|---------------|-------------------------------------------------|
-  | CSI300  | LGBModel | Alpha158 Plus | Train: {{ train_start }} to {{ train_end }} <br> Valid: {{ valid_start }} to {{ valid_end }} <br> Test &nbsp;: {{ test_start }} to {{ test_end }} |
+  | Binance Perp Futures 20 Coins | LGBModel | Alpha158 Plus | Train: {{ train_start }} to {{ train_end }} <br> Valid: {{ valid_start }} to {{ valid_end }} <br> Test &nbsp;: {{ test_start }} to {{ test_end }} |
 
 hypothesis_and_feedback: |-
   =========================================================
@@ -132,7 +149,7 @@ hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  Backtest Result: {{ experiment.result.loc[["IC", "4hour.excess_return_without_cost.annualized_return", "4hour.excess_return_without_cost.max_drawdown"]] }}
   {% endif %}
   Observation: {{ feedback.observations }}
   Hypothesis Evaluation: {{ feedback.hypothesis_evaluation }}
@@ -151,7 +168,7 @@ last_hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  Backtest Result: {{ experiment.result.loc[["IC", "4hour.excess_return_without_cost.annualized_return", "4hour.excess_return_without_cost.max_drawdown"]] }}
   {% endif %}
   Training Log:
   Here, you need to focus on analyzing whether there are any issues with the training. If any problems are identified, you must correct them in the next iteration and clearly describe how the changes will be made in the hypothesis.
@@ -173,7 +190,7 @@ sota_hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  Backtest Result: {{ experiment.result.loc[["IC", "1day.excess_return_without_cost.annualized_return", "1day.excess_return_without_cost.max_drawdown"]] }}
+  Backtest Result: {{ experiment.result.loc[["IC", "4hour.excess_return_without_cost.annualized_return", "4hour.excess_return_without_cost.max_drawdown"]] }}
   {% endif %}
   Training Log: {{ experiment.stdout }}
   Observation: {{ feedback.observations }}
@@ -191,13 +208,13 @@ factor_hypothesis_specification: |-
   1. **1-5 Factors per Generation:**
     - Ensure each generation produces 1-5 factors.
     - Balance simplicity and complexity to build a robust factor library.
-    - Make full use of the financial data provided to you instead of focusing solely on a specific field.
+    - Make full use of the cryptocurrency OHLCV data provided to you instead of focusing solely on a specific field.
   2. **Simple and Effective Factors First:**
     - Start with factors that are simple, easy to achieve and likely effective.
     - Concisely explain why these factors are expected to work.
     - Avoid complex or combined factors initially.
   3. **Gradual Complexity Increase:**
-    - Introduce more complex factors (e.g. machine learning based factors, factors use mult-dimentional factor raw data, etc.) as more experimental results are gathered.
+    - Introduce more complex factors (e.g. machine learning based factors, factors use multi-dimensional factor raw data, etc.) as more experimental results are gathered.
     - Combine factors only after simpler ones are tested and validated.
   4. **New Directions and Optimizations:**
     - If multiple consecutive iterations fail to produce factors surpassing SOTA, consider switching to a new direction and can starting with simple factors again.

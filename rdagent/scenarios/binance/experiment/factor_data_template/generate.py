@@ -1,27 +1,58 @@
-import qlib
+"""
+Prepare Binance factor data for factor execution.
 
-qlib.init(provider_uri="~/.qlib/qlib_data/cn_data")
+This script copies downloaded hourly PV data into the data folders
+used by the factor execution pipeline, then generates Qlib binary data.
 
-from qlib.data import D
+Usage (inside qlib Docker/conda env):
+    python generate.py
+"""
 
-instruments = D.instruments()
-fields = ["$open", "$close", "$high", "$low", "$volume", "$factor"]
-data = D.features(instruments, fields, freq="day").swaplevel().sort_index().loc["2008-12-29":].sort_index()
+import shutil
+from pathlib import Path
 
-data.to_hdf("./daily_pv_all.h5", key="data")
+import pandas as pd
+
+from rdagent.app.binance_rd_loop.conf import BINANCE_FACTOR_PROP_SETTING
+
+TEMPLATE_DIR = Path(__file__).resolve().parent
 
 
-fields = ["$open", "$close", "$high", "$low", "$volume", "$factor"]
-data = (
-    (
-        D.features(instruments, fields, start_time="2018-01-01", end_time="2019-12-31", freq="day")
-        .swaplevel()
-        .sort_index()
-    )
-    .swaplevel()
-    .loc[data.reset_index()["instrument"].unique()[:100]]
-    .swaplevel()
-    .sort_index()
-)
+def main():
+    h5_all = TEMPLATE_DIR / "hourly_pv_all.h5"
+    h5_debug = TEMPLATE_DIR / "hourly_pv_debug.h5"
+    readme = TEMPLATE_DIR / "README.md"
 
-data.to_hdf("./daily_pv_debug.h5", key="data")
+    if not h5_all.exists():
+        raise FileNotFoundError(
+            f"Data file not found: {h5_all}\n"
+            "Please run download_data.py first:\n"
+            "  python rdagent/scenarios/binance/experiment/download_data.py --start 2024-01-01 --end 2025-06-30"
+        )
+
+    # Copy to data_folder
+    data_folder = Path(BINANCE_FACTOR_PROP_SETTING.data_folder)
+    data_folder.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(h5_all, data_folder / "hourly_pv.h5")
+    shutil.copy2(readme, data_folder / "README.md")
+    print(f"Copied data to {data_folder}")
+
+    # Copy debug data
+    data_folder_debug = Path(BINANCE_FACTOR_PROP_SETTING.data_folder_debug)
+    data_folder_debug.mkdir(parents=True, exist_ok=True)
+    if h5_debug.exists():
+        shutil.copy2(h5_debug, data_folder_debug / "hourly_pv.h5")
+    else:
+        shutil.copy2(h5_all, data_folder_debug / "hourly_pv.h5")
+    shutil.copy2(readme, data_folder_debug / "README.md")
+    print(f"Copied debug data to {data_folder_debug}")
+
+    # Generate Qlib binary data
+    from rdagent.scenarios.binance.experiment.generate_qlib_data import main as gen_qlib
+
+    gen_qlib()
+    print("Qlib binary data generated.")
+
+
+if __name__ == "__main__":
+    main()

@@ -15,8 +15,8 @@ DIRNAME = Path(__file__).absolute().resolve().parent
 
 IMPORTANT_METRICS = [
     "IC",
-    "1day.excess_return_with_cost.annualized_return",
-    "1day.excess_return_with_cost.max_drawdown",
+    "4hour.excess_return_with_cost.annualized_return",
+    "4hour.excess_return_with_cost.max_drawdown",
 ]
 
 

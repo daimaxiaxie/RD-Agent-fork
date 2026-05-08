@@ -17,7 +17,7 @@ NOTE: **key is always "data" for all hdf5 files **.
 Run the download script to generate `hourly_pv_all.h5` and `hourly_pv_debug.h5`:
 
 ```bash
-python rdagent/scenarios/binance/experiment/download_data.py --start 2021-01-01 --end 2024-12-31
+python rdagent/scenarios/binance/experiment/download_data.py --start 2024-01-01 --end 2025-06-30
 ```
 
 # For different data, We have some basic knowledge for them

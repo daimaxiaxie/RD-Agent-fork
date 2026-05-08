@@ -10,7 +10,7 @@ from rdagent.components.coder.factor_coder.factor import (
 )
 from rdagent.core.experiment import Task
 from rdagent.core.scenario import Scenario
-from rdagent.scenarios.qlib.experiment.utils import get_data_folder_intro
+from rdagent.scenarios.binance.experiment.utils import get_data_folder_intro
 from rdagent.scenarios.qlib.experiment.workspace import QlibFBWorkspace
 from rdagent.scenarios.shared.get_runtime_info import get_runtime_environment_by_env
 from rdagent.utils.agent.tpl import T
@@ -21,10 +21,8 @@ class BinanceFactorExperiment(FactorExperiment[FactorTask, QlibFBWorkspace, Fact
         super().__init__(*args, **kwargs)
         self.experiment_workspace = QlibFBWorkspace(template_folder_path=Path(__file__).parent / "factor_template")
         self.stdout = ""
-        self.base_features: dict[str, str] = (
-            {}
-        )  # Qlib features in operator form, e.g., "RESI5": "Resi($close, 5)/$close"
-        self.base_feature_codes: dict[str, str] = {}  # Qlib features in code form
+        self.base_features: dict[str, str] = {}
+        self.base_feature_codes: dict[str, str] = {}
 
 
 class BinanceFactorScenario(Scenario):
@@ -82,7 +80,6 @@ class BinanceFactorScenario(Scenario):
     def get_scenario_all_desc(
         self, task: Task | None = None, filtered_tag: str | None = None, simple_background: bool | None = None
     ) -> str:
-        """A static scenario describer"""
         if simple_background:
             return f"""Background of the scenario:
 {self.background}"""

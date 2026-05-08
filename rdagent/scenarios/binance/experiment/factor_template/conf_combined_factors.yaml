@@ -1,14 +1,14 @@
 qlib_init:
-    provider_uri: "~/.qlib/qlib_data/cn_data"
-    region: cn
+    provider_uri: "~/.qlib/qlib_data/crypto_data"
 
-market: &market csi300
-benchmark: &benchmark SH000300
+market: &market all
+benchmark: &benchmark BTCUSDT
 
 data_handler_config: &data_handler_config
-    start_time: {{ train_start | default("2008-01-01", true) }}
+    start_time: {{ train_start | default("2024-01-01", true) }}
     end_time: {{ test_end | default("null", true) }}
     instruments: *market
+    freq: hour
     data_loader:
         class: NestedDataLoader
         kwargs:
@@ -16,8 +16,8 @@ data_handler_config: &data_handler_config
                 - class: qlib.contrib.data.loader.Alpha158DL
                   kwargs:
                     config:
-                        label: 
-                            - ["Ref($close, -2)/Ref($close, -1) - 1"]
+                        label:
+                            - ["Ref($close, -4)/$close - 1"]
                             - ["LABEL0"]
                         feature:
                             - {{ feature_expressions }}
@@ -26,6 +26,16 @@ data_handler_config: &data_handler_config
                   kwargs:
                     config: "combined_factors_df.parquet"
 
+    infer_processors:
+        - class: RobustZScoreNorm
+          kwargs:
+              fields_group: feature
+              clip_outlier: true
+              fit_start_time: {{ train_start | default("2024-01-01", true) }}
+              fit_end_time: {{ train_end | default("2024-09-30", true) }}
+        - class: Fillna
+          kwargs:
+              fields_group: feature
     learn_processors:
         - class: DropnaLabel
         - class: CSZScoreNorm
@@ -38,19 +48,20 @@ port_analysis_config: &port_analysis_config
         module_path: qlib.contrib.strategy
         kwargs:
             signal: <PRED>
-            topk: 50
-            n_drop: 5
+            topk: 3
+            n_drop: 1
+            trade_freq: 4
     backtest:
-        start_time: {{ test_start | default("2017-01-01", true) }}
+        start_time: {{ test_start | default("2025-01-01", true) }}
         end_time: {{ test_end | default("null", true) }}
-        account: 100000000
+        account: 100000
         benchmark: *benchmark
         exchange_kwargs:
-            limit_threshold: 0.095
+            limit_threshold: 0.0
             deal_price: close
-            open_cost: 0.0005
-            close_cost: 0.0015
-            min_cost: 5
+            open_cost: 0.0002
+            close_cost: 0.0002
+            min_cost: 0
 
 task:
     model:
@@ -75,21 +86,21 @@ task:
                 module_path: qlib.contrib.data.handler
                 kwargs: *data_handler_config
             segments:
-                train: [{{ train_start | default("2008-01-01", true) }}, {{ train_end | default("2014-12-31", true) }}]
-                valid: [{{ valid_start | default("2015-01-01", true) }}, {{ valid_end | default("2016-12-31", true) }}]
-                test: [{{ test_start | default("2017-01-01", true) }}, {{ test_end | default("null", true) }}]
-    record: 
+                train: [{{ train_start | default("2024-01-01", true) }}, {{ train_end | default("2024-09-30", true) }}]
+                valid: [{{ valid_start | default("2024-10-01", true) }}, {{ valid_end | default("2024-12-31", true) }}]
+                test: [{{ test_start | default("2025-01-01", true) }}, {{ test_end | default("null", true) }}]
+    record:
         - class: SignalRecord
           module_path: qlib.workflow.record_temp
-          kwargs: 
+          kwargs:
             model: <MODEL>
             dataset: <DATASET>
         - class: SigAnaRecord
           module_path: qlib.workflow.record_temp
-          kwargs: 
+          kwargs:
             ana_long_short: False
-            ann_scaler: 252
+            ann_scaler: 2190
         - class: PortAnaRecord
           module_path: qlib.workflow.record_temp
-          kwargs: 
+          kwargs:
             config: *port_analysis_config
