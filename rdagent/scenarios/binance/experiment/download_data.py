@@ -22,6 +22,7 @@ import logging
 import tempfile
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -78,7 +79,7 @@ def _download_zip(url: str) -> pd.DataFrame | None:
 
 
 def _download_klines_1h(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp) -> pd.DataFrame:
-    """Download 1h klines for one symbol. Raises on failure to ensure data integrity."""
+    """Download 1h klines for one symbol. Returns None if any month is missing."""
     chunks = []
     current = start_dt.replace(day=1)
     while current <= end_dt:
@@ -86,7 +87,8 @@ def _download_klines_1h(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestam
         url = f"{BASE_URL}/data/futures/um/monthly/klines/{symbol}/1h/{filename}"
         df = _download_zip(url)
         if df is None:
-            raise RuntimeError(f"Failed to download {symbol} for {current.strftime('%Y-%m')}")
+            log.warning("  %s %s: not available, skipping symbol", symbol, current.strftime("%Y-%m"))
+            return None
         chunks.append(df)
         log.info("  %s %s: %d rows", symbol, current.strftime("%Y-%m"), len(df))
         current += pd.DateOffset(months=1)
@@ -116,20 +118,27 @@ def main():
 
     start_dt = pd.Timestamp(args.start)
     end_dt = pd.Timestamp(args.end)
-    log.info("Downloading %d symbols: %s", len(SYMBOLS), ", ".join(SYMBOLS))
+    log.info("Downloading %d symbols with 4 threads: %s", len(SYMBOLS), ", ".join(SYMBOLS))
 
     all_frames = []
-    for symbol in SYMBOLS:
-        log.info("Downloading %s ...", symbol)
-        df = _download_klines_1h(symbol, start_dt, end_dt)
-        if df is None or df.empty:
-            log.warning("No data for %s, skipping.", symbol)
-            continue
-        df = df.copy()
-        df["instrument"] = symbol
-        df = df.set_index([df.index, "instrument"])
-        df.index.names = ["datetime", "instrument"]
-        all_frames.append(df)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(_download_klines_1h, s, start_dt, end_dt): s for s in SYMBOLS}
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                df = future.result()
+            except Exception as e:
+                log.warning("Error downloading %s: %s", symbol, e)
+                continue
+            if df is None or df.empty:
+                log.warning("No data for %s, skipping.", symbol)
+                continue
+            log.info("Finished %s", symbol)
+            df = df.copy()
+            df["instrument"] = symbol
+            df = df.set_index([df.index, "instrument"])
+            df.index.names = ["datetime", "instrument"]
+            all_frames.append(df)
 
     if not all_frames:
         log.error("No data downloaded.")
