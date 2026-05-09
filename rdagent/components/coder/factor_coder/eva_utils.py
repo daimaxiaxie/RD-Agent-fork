@@ -235,7 +235,21 @@ class FactorDatetimeDailyEvaluator(FactorEvaluator):
                 False,
             )
 
-        time_diff = pd.to_datetime(gen_df.index.get_level_values("datetime")).to_series().diff().dropna()
+        dt_values = pd.to_datetime(gen_df.index.get_level_values("datetime"))
+        # Group by instrument to compute per-instrument time diffs,
+        # avoiding cross-instrument interleaving that produces near-zero diffs.
+        if "instrument" in gen_df.index.names:
+            diffs = []
+            for _, group_idx in gen_df.index.to_frame(index=False).groupby("instrument"):
+                inst_dt = pd.to_datetime(group_idx["datetime"]).sort_values()
+                d = inst_dt.diff().dropna()
+                diffs.append(d)
+            if diffs:
+                time_diff = pd.concat(diffs)
+            else:
+                time_diff = dt_values.to_series().diff().dropna()
+        else:
+            time_diff = dt_values.to_series().diff().dropna()
         median_diff = time_diff.median()
         if median_diff < pd.Timedelta(seconds=1):
             return (

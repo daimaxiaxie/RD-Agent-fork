@@ -36,6 +36,8 @@ binance_factor_interface: |-
   - Do NOT use `reset_index()` unless you immediately restore the MultiIndex afterwards.
   - When iterating over instruments, use `for inst, group in df.groupby(level='instrument')` or `df.xs(inst, level='instrument')`.
   - After computing the factor, ensure the output DataFrame has the exact same MultiIndex (datetime, instrument) as the input.
+  - CRITICAL: `df.index.get_level_values('datetime')` returns a DatetimeIndex, NOT a Series. Do NOT use `.dt` accessor on it (e.g., `.dt.floor('h')` will raise AttributeError). Use `.floor('h')` directly on the DatetimeIndex instead.
+  - CRITICAL: The output DataFrame must have UNIQUE (datetime, instrument) index pairs. After groupby/merge/resample operations, always verify there are no duplicate indices. If duplicates may occur, use `.groupby(level=['datetime','instrument']).first()` or `df[~df.index.duplicated(keep='first')]` to deduplicate before saving. Duplicate indices will cause downstream errors.
 
 binance_factor_strategy: |-
   Ensure that for every step of data processing, the data format (including indexes) is clearly explained through comments.

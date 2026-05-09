@@ -119,8 +119,15 @@ def _process_message_and_df(
         logger.warning(f"Factor data from {source_name} is skipped due to invalid index structure: {index_info}")
         return f"{error_message}Factor data from {source_name} is skipped due to invalid index: {index_info}. "
 
-    time_diff = df.index.get_level_values("datetime").to_series().diff().dropna().unique()
-    if pd.Timedelta(minutes=1) in time_diff:
+    # Compute per-instrument time diffs to avoid cross-instrument interleaving
+    # that produces near-zero diffs and masks real interval anomalies.
+    diffs = []
+    for _, group_idx in df.index.to_frame(index=False).groupby("instrument"):
+        inst_dt = pd.to_datetime(group_idx["datetime"]).sort_values()
+        d = inst_dt.diff().dropna().unique()
+        diffs.append(d)
+    all_diffs = pd.concat([pd.Series(d) for d in diffs]).unique() if diffs else []
+    if pd.Timedelta(minutes=1) in all_diffs:
         logger.warning(f"Factor data from {source_name} is not generated.")
         return error_message
 

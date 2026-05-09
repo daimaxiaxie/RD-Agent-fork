@@ -193,6 +193,10 @@ class FactorFBWorkspace(FBWorkspace):
             if workspace_output_file_path.exists() and execution_success:
                 try:
                     executed_factor_value_dataframe = pd.read_hdf(workspace_output_file_path)
+                    if executed_factor_value_dataframe.index.has_duplicates:
+                        dup_count = executed_factor_value_dataframe.index.duplicated().sum()
+                        executed_factor_value_dataframe = executed_factor_value_dataframe[~executed_factor_value_dataframe.index.duplicated(keep="first")]
+                        execution_feedback += f"\nWarning: {dup_count} duplicate index rows removed, kept first occurrence."
                     execution_feedback += self.FB_OUTPUT_FILE_FOUND
                 except Exception as e:
                     execution_feedback += f"Error found when reading hdf file: {e}"[:1000]
