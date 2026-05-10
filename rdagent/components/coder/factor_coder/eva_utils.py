@@ -321,11 +321,13 @@ class FactorMissingValuesEvaluator(FactorEvaluator):
                 "The source dataframe is None. Please check the implementation.",
                 False,
             )
-        if gen_df.isna().sum().sum() == gt_df.isna().sum().sum():
+        gen_na = int(pd.isna(gen_df.values).sum())
+        gt_na = int(pd.isna(gt_df.values).sum())
+        if gen_na == gt_na:
             return "Both dataframes have the same missing values.", True
         else:
             return (
-                f"The dataframes do not have the same missing values. The source dataframe has {gen_df.isna().sum().sum()} missing values, while the ground truth dataframe has {gt_df.isna().sum().sum()} missing values. Please check the implementation.",
+                f"The dataframes do not have the same missing values. The source dataframe has {gen_na} missing values, while the ground truth dataframe has {gt_na} missing values. Please check the implementation.",
                 False,
             )
 

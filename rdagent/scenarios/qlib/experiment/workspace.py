@@ -25,6 +25,12 @@ class QlibFBWorkspace(FBWorkspace):
             return None, "Unknown environment type"
         qtde.prepare()
 
+        # Clean up stale mlruns to avoid corrupted metric files from previous runs
+        mlruns_dir = self.workspace_path / "mlruns"
+        if mlruns_dir.exists():
+            import shutil
+            shutil.rmtree(mlruns_dir, ignore_errors=True)
+
         # Run the Qlib backtest
         execute_qlib_log = qtde.check_output(
             local_path=str(self.workspace_path),
