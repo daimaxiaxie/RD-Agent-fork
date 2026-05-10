@@ -240,9 +240,9 @@ class FactorDatetimeDailyEvaluator(FactorEvaluator):
         # avoiding cross-instrument interleaving that produces near-zero diffs.
         if "instrument" in gen_df.index.names:
             diffs = []
-            for _, group_idx in gen_df.index.to_frame(index=False).groupby("instrument"):
-                inst_dt = pd.to_datetime(group_idx["datetime"]).sort_values()
-                d = inst_dt.diff().dropna()
+            for _, group in gen_df.groupby(level="instrument"):
+                inst_dt = pd.to_datetime(group.index.get_level_values("datetime")).sort_values()
+                d = inst_dt.to_series().diff().dropna()
                 diffs.append(d)
             if diffs:
                 time_diff = pd.concat(diffs)

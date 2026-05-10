@@ -122,9 +122,9 @@ def _process_message_and_df(
     # Compute per-instrument time diffs to avoid cross-instrument interleaving
     # that produces near-zero diffs and masks real interval anomalies.
     diffs = []
-    for _, group_idx in df.index.to_frame(index=False).groupby("instrument"):
-        inst_dt = pd.to_datetime(group_idx["datetime"]).sort_values()
-        d = inst_dt.diff().dropna().unique()
+    for _, group in normalized_df.groupby(level="instrument"):
+        inst_dt = pd.to_datetime(group.index.get_level_values("datetime")).sort_values()
+        d = inst_dt.to_series().diff().dropna().unique()
         diffs.append(d)
     all_diffs = pd.concat([pd.Series(d) for d in diffs]).unique() if diffs else []
     if pd.Timedelta(minutes=1) in all_diffs:
