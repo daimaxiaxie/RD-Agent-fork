@@ -238,9 +238,10 @@ class FactorDatetimeDailyEvaluator(FactorEvaluator):
         dt_values = pd.to_datetime(gen_df.index.get_level_values("datetime"))
         # Group by instrument to compute per-instrument time diffs,
         # avoiding cross-instrument interleaving that produces near-zero diffs.
-        if "instrument" in gen_df.index.names:
+        inst_level = gen_df.index.names.index("instrument") if "instrument" in gen_df.index.names else None
+        if inst_level is not None:
             diffs = []
-            for _, group in gen_df.groupby(level="instrument"):
+            for _, group in gen_df.groupby(level=inst_level):
                 inst_dt = pd.to_datetime(group.index.get_level_values("datetime")).sort_values()
                 d = inst_dt.to_series().diff().dropna()
                 diffs.append(d)
