@@ -12,6 +12,7 @@ data_handler_config: &data_handler_config
     data_loader:
         class: qlib.contrib.data.loader.Alpha158DL
         kwargs:
+            freq: 60min
             config:
                 label:
                     - ["Ref($close, -4)/$close - 1"]
