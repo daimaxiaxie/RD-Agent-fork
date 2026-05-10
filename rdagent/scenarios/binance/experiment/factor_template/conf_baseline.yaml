@@ -43,6 +43,7 @@ port_analysis_config: &port_analysis_config
         account: 100000
         benchmark: *benchmark
         exchange_kwargs:
+            freq: 60min
             limit_threshold: 0.0
             deal_price: close
             open_cost: 0.0002
