@@ -52,7 +52,6 @@ port_analysis_config: &port_analysis_config
             signal: <PRED>
             topk: 3
             n_drop: 1
-            trade_freq: 4
     backtest:
         start_time: {{ test_start | default("2025-01-01", true) }}
         end_time: {{ test_end | default("null", true) }}
