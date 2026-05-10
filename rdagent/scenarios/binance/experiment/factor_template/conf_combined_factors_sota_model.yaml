@@ -1,6 +1,6 @@
 qlib_init:
     provider_uri:
-        hour: "~/.qlib/qlib_data/crypto_data"
+        60min: "~/.qlib/qlib_data/crypto_data"
 
 market: &market all
 benchmark: &benchmark BTCUSDT
@@ -85,7 +85,7 @@ task:
         class: {{ dataset_cls | default("DatasetH") }}
         module_path: qlib.data.dataset
         kwargs:
-            freq: hour
+            freq: 60min
             handler:
                 class: DataHandlerLP
                 module_path: qlib.contrib.data.handler

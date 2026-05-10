@@ -70,6 +70,7 @@ def main():
             "--include_fields", "open,high,low,close,volume",
             "--symbol_field_name", "symbol",
             "--date_field_name", "date",
+            "--freq", "60min",
         ]
         print(f"Running: {' '.join(cmd)}")
         subprocess.check_call(cmd)
@@ -83,7 +84,8 @@ def main():
             f"    --qlib_dir {qlib_dir} \\\n"
             f"    --include_fields open,high,low,close,volume \\\n"
             f"    --symbol_field_name symbol \\\n"
-            f"    --date_field_name date\n\n"
+            f"    --date_field_name date \\\n"
+            f"    --freq 60min\n\n"
             f"Get dump_bin.py from: {QLIB_DUMP_BIN_URL}"
         )
 
