@@ -13,11 +13,26 @@ from rdagent.utils.agent.tpl import T
 
 DIRNAME = Path(__file__).absolute().resolve().parent
 
-IMPORTANT_METRICS = [
+IMPORTANT_METRICS_PATTERNS = [
     "IC",
-    "4hour.excess_return_with_cost.annualized_return",
-    "4hour.excess_return_with_cost.max_drawdown",
+    "excess_return_with_cost.annualized_return",
+    "excess_return_with_cost.max_drawdown",
 ]
+
+
+def _match_important_metrics(index: pd.Index) -> list[str]:
+    """Find metrics matching IMPORTANT_METRICS_PATTERNS from the actual index."""
+    matched = []
+    for pattern in IMPORTANT_METRICS_PATTERNS:
+        if pattern in index:
+            matched.append(pattern)
+        else:
+            # Match freq-prefixed versions like "60min.excess_return_with_cost.annualized_return"
+            for idx in index:
+                if isinstance(idx, str) and idx.endswith("." + pattern):
+                    matched.append(idx)
+                    break
+    return matched
 
 
 def process_results(current_result, sota_result):
@@ -37,7 +52,8 @@ def process_results(current_result, sota_result):
     combined_df = pd.concat([current_df, sota_df], axis=1)
 
     # Filter the combined DataFrame to retain only the important metrics
-    filtered_combined_df = combined_df.loc[IMPORTANT_METRICS]
+    available_metrics = _match_important_metrics(combined_df.index)
+    filtered_combined_df = combined_df.loc[available_metrics]
 
     def format_filtered_combined_df(filtered_combined_df: pd.DataFrame) -> str:
         results = []
