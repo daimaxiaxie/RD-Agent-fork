@@ -1,5 +1,6 @@
 qlib_init:
     provider_uri: "~/.qlib/qlib_data/crypto_data"
+    freq: hour
 
 market: &market all
 benchmark: &benchmark BTCUSDT
@@ -8,7 +9,6 @@ data_handler_config: &data_handler_config
     start_time: {{ train_start | default("2024-01-01", true) }}
     end_time: {{ test_end | default("null", true) }}
     instruments: *market
-    freq: hour
     data_loader:
         class: NestedDataLoader
         kwargs:
