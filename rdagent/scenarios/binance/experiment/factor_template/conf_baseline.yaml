@@ -1,6 +1,7 @@
 qlib_init:
     provider_uri:
         60min: "~/.qlib/qlib_data/crypto_data"
+        1min: "~/.qlib/qlib_data/crypto_data"
 
 market: &market all
 benchmark: &benchmark BTCUSDT
@@ -40,7 +41,7 @@ port_analysis_config: &port_analysis_config
         start_time: {{ test_start | default("2025-01-01", true) }}
         end_time: {{ test_end | default("null", true) }}
         account: 100000
-        benchmark: null
+        benchmark: *benchmark
         exchange_kwargs:
             limit_threshold: 0.0
             deal_price: close

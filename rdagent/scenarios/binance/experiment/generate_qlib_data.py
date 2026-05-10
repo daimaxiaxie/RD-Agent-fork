@@ -46,6 +46,7 @@ def main():
     args = parser.parse_args()
 
     default_h5 = Path(__file__).resolve().parent / "factor_data_template" / "hourly_pv_all.h5"
+    default_dumppy = Path(__file__).resolve().parent / "dump_bin.py"
     h5_path = Path(args.h5) if args.h5 else default_h5
     qlib_dir = Path(args.qlib_dir).expanduser() if args.qlib_dir else Path("~/.qlib/qlib_data/crypto_data").expanduser()
 

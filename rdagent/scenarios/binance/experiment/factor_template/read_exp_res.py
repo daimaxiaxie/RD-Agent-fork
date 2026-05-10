@@ -6,7 +6,7 @@ import qlib
 from mlflow.entities import ViewType
 from mlflow.tracking import MlflowClient
 
-qlib.init(provider_uri={"60min": "~/.qlib/qlib_data/crypto_data"})
+qlib.init(provider_uri={"60min": "~/.qlib/qlib_data/crypto_data", "1min": "~/.qlib/qlib_data/crypto_data"})
 
 from qlib.workflow import R
 
