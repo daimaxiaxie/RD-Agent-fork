@@ -52,10 +52,12 @@ else:
     print(f"Output has been saved to {output_path}")
 
     # Try both daily and hourly report names (Qlib naming may differ for hourly data)
+    ret_data_frame = None
     for report_name in ["portfolio_analysis/report_normal_1day.pkl", "portfolio_analysis/report_normal_1hour.pkl"]:
         try:
             ret_data_frame = latest_recorder.load_object(report_name)
             break
         except Exception:
             continue
-    ret_data_frame.to_pickle("ret.pkl")
+    if ret_data_frame is not None:
+        ret_data_frame.to_pickle("ret.pkl")
