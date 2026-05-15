@@ -47,12 +47,15 @@ def main():
             "  python rdagent/scenarios/binance/experiment/download_data.py --interval 1h"
         )
 
-    # Symlink to data_folder (both pv.h5 and hourly_pv.h5 for compatibility)
+    # Symlink to data_folder
     data_folder = Path(BINANCE_FACTOR_PROP_SETTING.data_folder)
     data_folder.mkdir(parents=True, exist_ok=True)
     _symlink(h5_all, data_folder / "pv.h5")
-    _symlink(h5_all, data_folder / "hourly_pv.h5")
     _symlink(readme, data_folder / "README.md")
+    # Remove legacy symlink if present
+    legacy = data_folder / "hourly_pv.h5"
+    if legacy.is_symlink():
+        legacy.unlink()
     print(f"Linked data to {data_folder}")
 
     # Symlink debug data
@@ -60,8 +63,10 @@ def main():
     data_folder_debug.mkdir(parents=True, exist_ok=True)
     h5_debug_src = h5_debug if h5_debug.exists() else h5_all
     _symlink(h5_debug_src, data_folder_debug / "pv.h5")
-    _symlink(h5_debug_src, data_folder_debug / "hourly_pv.h5")
     _symlink(readme, data_folder_debug / "README.md")
+    legacy_debug = data_folder_debug / "hourly_pv.h5"
+    if legacy_debug.is_symlink():
+        legacy_debug.unlink()
     print(f"Linked debug data to {data_folder_debug}")
 
     # Generate Qlib binary data (requires qlib, skips gracefully if not available)
