@@ -1,3 +1,4 @@
+import os
 import pickle
 from pathlib import Path
 
@@ -6,7 +7,8 @@ import qlib
 from mlflow.entities import ViewType
 from mlflow.tracking import MlflowClient
 
-qlib.init(provider_uri={"{{ freq }}": "~/.qlib/qlib_data/crypto_data", "60min": "~/.qlib/qlib_data/crypto_data", "1min": "~/.qlib/qlib_data/crypto_data"})
+freq = os.environ.get("freq", "240min")
+qlib.init(provider_uri={freq: "~/.qlib/qlib_data/crypto_data", "60min": "~/.qlib/qlib_data/crypto_data", "1min": "~/.qlib/qlib_data/crypto_data"})
 
 from qlib.workflow import R
 
@@ -54,10 +56,10 @@ else:
     # Try report names for various frequencies
     ret_data_frame = None
     for report_name in [
+        f"portfolio_analysis/report_normal_{freq}.pkl",
         "portfolio_analysis/report_normal_1day.pkl",
         "portfolio_analysis/report_normal_1hour.pkl",
         "portfolio_analysis/report_normal_4hour.pkl",
-        "portfolio_analysis/report_normal_{{ freq }}.pkl",
     ]:
         try:
             ret_data_frame = latest_recorder.load_object(report_name)
