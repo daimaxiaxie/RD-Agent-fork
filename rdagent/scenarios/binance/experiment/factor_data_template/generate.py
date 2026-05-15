@@ -20,7 +20,9 @@ TEMPLATE_DIR = Path(__file__).resolve().parent
 
 def _symlink(src: Path, dst: Path) -> None:
     dst = dst.resolve()
-    if dst.exists() or dst.is_symlink():
+    if dst.is_symlink():
+        dst.unlink()
+    elif dst.exists():
         if dst.resolve() == src.resolve():
             return
         dst.unlink()
