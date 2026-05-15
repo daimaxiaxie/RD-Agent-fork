@@ -103,7 +103,7 @@ def get_data_folder_intro(fname_reg: str = ".*", flags=0, variable_mapping=None)
             "Binance factor data not found. Missing:\n"
             + "\n".join(missing)
             + "\n\nPlease prepare the data first:\n"
-            "  # Step 1: Download hourly data\n"
+            "  # Step 1: Download kline data\n"
             "  python rdagent/scenarios/binance/experiment/download_data.py --start 2024-01-01 --end 2025-06-30\n\n"
             "  # Step 2: Copy data to working directories\n"
             "  python rdagent/scenarios/binance/experiment/factor_data_template/generate.py\n\n"

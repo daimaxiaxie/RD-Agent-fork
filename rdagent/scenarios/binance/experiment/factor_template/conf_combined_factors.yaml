@@ -1,5 +1,6 @@
 qlib_init:
     provider_uri:
+        {{ freq }}: "~/.qlib/qlib_data/crypto_data"
         60min: "~/.qlib/qlib_data/crypto_data"
         1min: "~/.qlib/qlib_data/crypto_data"
 
@@ -16,10 +17,10 @@ data_handler_config: &data_handler_config
             dataloader_l:
                 - class: qlib.contrib.data.loader.Alpha158DL
                   kwargs:
-                    freq: 60min
+                    freq: {{ freq }}
                     config:
                         label:
-                            - ["Ref($close, -4)/$close - 1"]
+                            - ["Ref($close, -1)/$close - 1"]
                             - ["LABEL0"]
                         feature:
                             - {{ feature_expressions }}
@@ -56,7 +57,7 @@ port_analysis_config: &port_analysis_config
         class: SimulatorExecutor
         module_path: qlib.backtest.executor
         kwargs:
-            time_per_step: 4h
+            time_per_step: {{ freq }}
             generate_portfolio_metrics: True
     backtest:
         start_time: {{ test_start | default("2025-01-01", true) }}
@@ -64,7 +65,7 @@ port_analysis_config: &port_analysis_config
         account: 100000
         benchmark: *benchmark
         exchange_kwargs:
-            freq: 60min
+            freq: {{ freq }}
             limit_threshold: 0.0
             deal_price: close
             open_cost: 0.0002
@@ -89,7 +90,7 @@ task:
         class: DatasetH
         module_path: qlib.data.dataset
         kwargs:
-            freq: 60min
+            freq: {{ freq }}
             handler:
                 class: DataHandlerLP
                 module_path: qlib.contrib.data.handler
@@ -108,7 +109,7 @@ task:
           module_path: qlib.workflow.record_temp
           kwargs:
             ana_long_short: False
-            ann_scaler: 2190
+            ann_scaler: {{ ann_scaler }}
         - class: PortAnaRecord
           module_path: qlib.workflow.record_temp
           kwargs:

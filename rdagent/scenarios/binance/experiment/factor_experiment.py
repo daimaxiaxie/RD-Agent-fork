@@ -28,17 +28,37 @@ class BinanceFactorExperiment(FactorExperiment[FactorTask, QlibFBWorkspace, Fact
 class BinanceFactorScenario(Scenario):
     def __init__(self) -> None:
         super().__init__()
+        freq = BINANCE_FACTOR_PROP_SETTING.freq
+        freq_desc = BINANCE_FACTOR_PROP_SETTING.freq_desc
+
         self._background = deepcopy(
             T(".prompts:binance_factor_background").r(
                 runtime_environment=self.get_runtime_environment(),
+                freq=freq,
+                freq_desc=freq_desc,
             )
         )
         self._source_data = deepcopy(get_data_folder_intro())
         self._output_format = deepcopy(T(".prompts:binance_factor_output_format").r())
-        self._interface = deepcopy(T(".prompts:binance_factor_interface").r())
+        self._interface = deepcopy(
+            T(".prompts:binance_factor_interface").r(
+                freq=freq,
+                freq_desc=freq_desc,
+            )
+        )
         self._strategy = deepcopy(T(".prompts:binance_factor_strategy").r())
-        self._simulator = deepcopy(T(".prompts:binance_factor_simulator").r())
-        self._rich_style_description = deepcopy(T(".prompts:binance_factor_rich_style_description").r())
+        self._simulator = deepcopy(
+            T(".prompts:binance_factor_simulator").r(
+                freq=freq,
+                freq_desc=freq_desc,
+            )
+        )
+        self._rich_style_description = deepcopy(
+            T(".prompts:binance_factor_rich_style_description").r(
+                freq=freq,
+                freq_desc=freq_desc,
+            )
+        )
         self._experiment_setting = deepcopy(
             T(".prompts:binance_factor_experiment_setting").r(
                 train_start=BINANCE_FACTOR_PROP_SETTING.train_start,

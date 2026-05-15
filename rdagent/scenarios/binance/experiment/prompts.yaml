@@ -1,14 +1,14 @@
 binance_factor_background: |-
   The factor is a characteristic or variable used in quantitative cryptocurrency investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of excess returns, and they are central to many quantitative investment strategies.
-  Each number in the factor represents a numeric value for an instrument (cryptocurrency) at a given hour.
-  User will train a model to predict the next 4 hours' return based on the factor values of the previous hours.
+  Each number in the factor represents a numeric value for an instrument (cryptocurrency) at a given bar ({{ freq_desc }} frequency).
+  User will train a model to predict the next bar's return based on the factor values of the previous bars.
   The factor is defined in the following parts:
   1. Name: The name of the factor.
   2. Description: The description of the factor.
   3. Formulation: The formulation of the factor.
   4. Variables: The variables or functions used in the formulation of the factor.
   The factor might not provide all the parts of the information above since some might not be applicable.
-  Please specifically give all the hyperparameter in the factors like the window size, look back period, and so on. One factor should statically defines one output with a static source data. For example, last 10 hours momentum and last 20 hours momentum should be two different factors.
+  Please specifically give all the hyperparameter in the factors like the window size, look back period, and so on. One factor should statically defines one output with a static source data. For example, last 10 bars momentum and last 20 bars momentum should be two different factors.
 
   {% if runtime_environment is not none %}
   ====== Runtime Environment ======
@@ -21,9 +21,9 @@ binance_factor_interface: |-
   Your python code should contain the following part: the import part, the function part, and the main part. You should write a main function name: "calculate_{function_name}" and call this function in "if __name__ == __main__" part. Don't write any try-except block in your python code. The user will catch the exception message and provide the feedback to you.
   User will write your python code into a python file and execute the file directly with "python {your_file_name}.py". You should calculate the factor values and save the result into a HDF5(H5) file named "result.h5" in the same directory as your python file. The result file is a HDF5(H5) file containing a pandas dataframe. The index of the dataframe is the "datetime" and "instrument", and the single column name is the factor name,and the value is the factor value. The result file should be saved in the same directory as your python file. IMPORTANT: When saving to HDF5, you MUST use `key="data"`, e.g. `df.to_hdf("result.h5", key="data", mode="w")`. Do NOT use any other key such as "factor" or "df".
 
-  INPUT DATA FORMAT: The input data file "hourly_pv.h5" contains a pandas DataFrame with:
+  INPUT DATA FORMAT: The input data file "pv.h5" contains a pandas DataFrame with:
   - Index: pd.MultiIndex with two levels:
-    - "datetime" (level 0): Timestamp type, hourly frequency (e.g., Timestamp('2024-01-01 00:00:00'))
+    - "datetime" (level 0): Timestamp type, {{ freq_desc }} frequency (e.g., Timestamp('2024-01-01 00:00:00'))
     - "instrument" (level 1): str type, cryptocurrency symbol (e.g., 'BTCUSDT', 'ETHUSDT')
   - Columns: $open (float64), $high (float64), $low (float64), $close (float64), $volume (float64)
 
@@ -89,7 +89,7 @@ binance_factor_output_format: |-
   0   your factor name  40914 non-null  float64
   dtypes: float64(1)
   memory usage: <ignore>
-  Notice: The non-null count is OK to be different to the total number of entries since some instruments may not have the factor value on some hours.
+  Notice: The non-null count is OK to be different to the total number of entries since some instruments may not have the factor value on some bars.
   One possible format of `result.h5` may be like following (saved with `key="data"`):
   datetime            instrument
   2024-01-02 00:00:00  BTCUSDT     -0.001796
@@ -102,14 +102,14 @@ binance_factor_output_format: |-
                        DOGEUSDT     0.002459
 
 binance_factor_simulator: |-
-  The factors will be sent into Qlib to train a model to predict the next 4 hours' return based on the factor values of the previous hours.
+  The factors will be sent into Qlib to train a model to predict the next bar's return based on the factor values of the previous bars.
   Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower research, and create value using AI technologies in quantitative investment, from exploring ideas to implementing productions. Qlib supports diverse machine learning modeling paradigms. including supervised learning, market dynamics modeling, and RL.
   User will use Qlib to automatically do the following things:
   1. generate a new factor table based on the factor values.
-  2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the next 4 hours' return based on the factor values.
-  3. build a portfolio based on the predicted return, rebalancing every 4 hours.
+  2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the next bar's return based on the factor values.
+  3. build a portfolio based on the predicted return, rebalancing every bar.
   4. evaluate the portfolio's performance including the return, sharpe ratio, max drawdown, and so on.
-  Note: The data is cryptocurrency perpetual futures hourly data from Binance, which trades 24/7 without market close.
+  Note: The data is cryptocurrency perpetual futures {{ freq_desc }} data from Binance, which trades 24/7 without market close (T+0).
 
 binance_factor_rich_style_description : |-
   ### R&D Agent-Binance: Automated Crypto Quantitative Trading & Iterative Factors Evolution Demo
@@ -130,7 +130,7 @@ binance_factor_rich_style_description : |-
 
   #### [Objective](#_summary)
 
-  To demonstrate the dynamic evolution of cryptocurrency factors through the Qlib platform, emphasizing how each iteration enhances the accuracy and reliability of the resulting factors on Binance perpetual futures hourly data.
+  To demonstrate the dynamic evolution of cryptocurrency factors through the Qlib platform, emphasizing how each iteration enhances the accuracy and reliability of the resulting factors on Binance perpetual futures {{ freq_desc }} data.
 
 binance_factor_experiment_setting: |-
   | Dataset 📊 | Model 🤖    | Factors 🌟       | Data Split  🧮                                   |

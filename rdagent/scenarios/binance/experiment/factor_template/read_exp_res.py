@@ -6,7 +6,7 @@ import qlib
 from mlflow.entities import ViewType
 from mlflow.tracking import MlflowClient
 
-qlib.init(provider_uri={"60min": "~/.qlib/qlib_data/crypto_data", "1min": "~/.qlib/qlib_data/crypto_data"})
+qlib.init(provider_uri={"{{ freq }}": "~/.qlib/qlib_data/crypto_data", "60min": "~/.qlib/qlib_data/crypto_data", "1min": "~/.qlib/qlib_data/crypto_data"})
 
 from qlib.workflow import R
 
@@ -51,9 +51,14 @@ else:
 
     print(f"Output has been saved to {output_path}")
 
-    # Try both daily and hourly report names (Qlib naming may differ for hourly data)
+    # Try report names for various frequencies
     ret_data_frame = None
-    for report_name in ["portfolio_analysis/report_normal_1day.pkl", "portfolio_analysis/report_normal_1hour.pkl"]:
+    for report_name in [
+        "portfolio_analysis/report_normal_1day.pkl",
+        "portfolio_analysis/report_normal_1hour.pkl",
+        "portfolio_analysis/report_normal_4hour.pkl",
+        "portfolio_analysis/report_normal_{{ freq }}.pkl",
+    ]:
         try:
             ret_data_frame = latest_recorder.load_object(report_name)
             break

@@ -77,6 +77,8 @@ class BinanceFactorRunner(CachedRunner[BinanceFactorExperiment]):
             "test_start": fbps.test_start,
             "feature_names": str(list(exp.base_features.keys())),
             "feature_expressions": str(list(exp.base_features.values())),
+            "freq": fbps.freq,
+            "ann_scaler": str(fbps.ann_scaler),
         }
         if fbps.test_end is not None:
             env_to_use.update({"test_end": fbps.test_end})

@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-Download multi-coin 1h klines from Binance data.binance.vision (perpetual futures only)
+Download multi-coin klines from Binance data.binance.vision (perpetual futures only)
 and save as HDF5 for the binance_factor scenario.
 
 Output files:
-  - hourly_pv_all.h5       full dataset (key="data")
-  - hourly_pv_debug.h5     subset: first 5 coins, 6 months around midpoint
+  - pv_all.h5       full dataset (key="data")
+  - pv_debug.h5     subset: first 5 coins, 6 months around midpoint
 
 Index:  MultiIndex (datetime, instrument)
 Columns: $open, $high, $low, $close, $volume
 
 Usage:
-    python download_data.py
+    python download_data.py                          # default: 1h klines
+    python download_data.py --interval 4h            # 4h klines
     python download_data.py --start 2021-01-01 --end 2024-12-31
     # After download, generate Qlib binary data separately:
     python generate_qlib_data.py
@@ -42,10 +43,10 @@ SYMBOLS = [
     "TRXUSDT", "TONUSDT", "FTMUSDT", "AAVEUSDT",
     "CRVUSDT", "SNXUSDT", "GRTUSDT", "FILUSDT", "STXUSDT",
     "IMXUSDT", "ETCUSDT", "BCHUSDT", "SANDUSDT", "ALGOUSDT",
-    "ICPUSDT", "FLOWUSDT", "THETAUSDT", "AXSUSDT", 
-    "GALAUSDT", "1000PEPEUSDT", "PENDLEUSDT", "LDOUSDT", "ENSUSDT", 
+    "ICPUSDT", "FLOWUSDT", "THETAUSDT", "AXSUSDT",
+    "GALAUSDT", "1000PEPEUSDT", "PENDLEUSDT", "LDOUSDT", "ENSUSDT",
     "PYTHUSDT", "IOTAUSDT", "AXLUSDT", "EGLDUSDT", "CKBUSDT",
-    "AEROUSDT", "KAIAUSDT", "DRIFTUSDT", 
+    "AEROUSDT", "KAIAUSDT", "DRIFTUSDT",
     # 增强器
     "OPUSDT", "ARBUSDT", "APTUSDT", "NEARUSDT", "INJUSDT",
     "TIAUSDT", "SUIUSDT", "FETUSDT", "WLDUSDT",
@@ -78,13 +79,13 @@ def _download_zip(url: str) -> pd.DataFrame | None:
     return df
 
 
-def _download_klines_1h(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp) -> pd.DataFrame:
-    """Download 1h klines for one symbol. Returns None if any month is missing."""
+def _download_klines(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp, interval: str) -> pd.DataFrame | None:
+    """Download klines for one symbol at the given interval. Returns None if any month is missing."""
     chunks = []
     current = start_dt.replace(day=1)
     while current <= end_dt:
-        filename = f"{symbol}-1h-{current.strftime('%Y-%m')}.zip"
-        url = f"{BASE_URL}/data/futures/um/monthly/klines/{symbol}/1h/{filename}"
+        filename = f"{symbol}-{interval}-{current.strftime('%Y-%m')}.zip"
+        url = f"{BASE_URL}/data/futures/um/monthly/klines/{symbol}/{interval}/{filename}"
         df = _download_zip(url)
         if df is None:
             log.warning("  %s %s: not available, skipping symbol", symbol, current.strftime("%Y-%m"))
@@ -107,22 +108,24 @@ def _download_klines_1h(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestam
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Download Binance perpetual futures 1h klines -> hourly_pv.h5")
+    parser = argparse.ArgumentParser(description="Download Binance perpetual futures klines -> pv.h5")
     parser.add_argument("--start", default="2021-01-01")
     parser.add_argument("--end", default="2025-12-31")
-    parser.add_argument("--output", help="Output path (default: factor_data_template/hourly_pv_all.h5)")
-    parser.add_argument("--debug-output", help="Debug path (default: factor_data_template/hourly_pv_debug.h5)")
+    parser.add_argument("--interval", default="1h", choices=["1m", "5m", "15m", "1h", "4h", "1d"],
+                        help="Binance kline interval (default: 1h)")
+    parser.add_argument("--output", help="Output path (default: factor_data_template/pv_all.h5)")
+    parser.add_argument("--debug-output", help="Debug path (default: factor_data_template/pv_debug.h5)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     start_dt = pd.Timestamp(args.start)
     end_dt = pd.Timestamp(args.end)
-    log.info("Downloading %d symbols with 4 threads: %s", len(SYMBOLS), ", ".join(SYMBOLS))
+    log.info("Downloading %d symbols at %s interval with 4 threads", len(SYMBOLS), args.interval)
 
     all_frames = []
     with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = {pool.submit(_download_klines_1h, s, start_dt, end_dt): s for s in SYMBOLS}
+        futures = {pool.submit(_download_klines, s, start_dt, end_dt, args.interval): s for s in SYMBOLS}
         for future in as_completed(futures):
             symbol = futures[future]
             try:
@@ -153,13 +156,13 @@ def main():
              combined.index.get_level_values("datetime").max())
 
     # Save full (HDF5/PyTables does not support category in MultiIndex)
-    out_path = Path(args.output) if args.output else OUTPUT_DIR / "hourly_pv_all.h5"
+    out_path = Path(args.output) if args.output else OUTPUT_DIR / "pv_all.h5"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     combined.to_hdf(out_path, key="data", mode="w")
     log.info("Saved to %s", out_path)
 
     # Save debug (5 coins, 6 months around midpoint)
-    debug_path = Path(args.debug_output) if args.debug_output else OUTPUT_DIR / "hourly_pv_debug.h5"
+    debug_path = Path(args.debug_output) if args.debug_output else OUTPUT_DIR / "pv_debug.h5"
     debug_coins = combined.index.get_level_values("instrument").unique()[:5]
     dt_min = combined.index.get_level_values("datetime").min()
     dt_max = combined.index.get_level_values("datetime").max()
@@ -173,7 +176,7 @@ def main():
     log.info("Saved debug (%d rows, %d coins) to %s", len(debug_df), len(debug_coins), debug_path)
 
     log.info("Download complete. To generate Qlib binary data, run:\n"
-             "  python rdagent/scenarios/binance/experiment/generate_qlib_data.py")
+             "  python rdagent/scenarios/binance/experiment/generate_qlib_data.py --freq <freq>")
 
 
 if __name__ == "__main__":
