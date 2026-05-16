@@ -4,6 +4,7 @@ from typing import List, Tuple
 from rdagent.components.coder.factor_coder.factor import FactorExperiment, FactorTask
 from rdagent.components.proposal import FactorHypothesis2Experiment, FactorHypothesisGen
 from rdagent.core.proposal import Hypothesis, Scenario, Trace
+from rdagent.app.binance_rd_loop.conf import BINANCE_FACTOR_PROP_SETTING
 from rdagent.scenarios.binance.experiment.factor_experiment import BinanceFactorExperiment
 from rdagent.utils.agent.tpl import T
 
@@ -15,16 +16,18 @@ class BinanceFactorHypothesisGen(FactorHypothesisGen):
         super().__init__(scen)
 
     def prepare_context(self, trace: Trace) -> Tuple[dict, bool]:
+        freq = BINANCE_FACTOR_PROP_SETTING.freq
         hypothesis_and_feedback = (
             T("scenarios.binance.prompts:hypothesis_and_feedback").r(
                 trace=trace,
+                freq=freq,
             )
             if len(trace.hist) > 0
             else "No previous hypothesis and feedback available since it's the first round."
         )
         last_hypothesis_and_feedback = (
             T("scenarios.binance.prompts:last_hypothesis_and_feedback").r(
-                experiment=trace.hist[-1][0], feedback=trace.hist[-1][1]
+                experiment=trace.hist[-1][0], feedback=trace.hist[-1][1], freq=freq,
             )
             if len(trace.hist) > 0
             else "No previous hypothesis and feedback available since it's the first round."
@@ -73,6 +76,7 @@ class BinanceFactorHypothesis2Experiment(FactorHypothesis2Experiment):
                 specific_trace.hist.reverse()
                 hypothesis_and_feedback = T("scenarios.binance.prompts:hypothesis_and_feedback").r(
                     trace=specific_trace,
+                    freq=BINANCE_FACTOR_PROP_SETTING.freq,
                 )
             else:
                 hypothesis_and_feedback = "No previous hypothesis and feedback available."
