@@ -11,6 +11,7 @@ import fire
 import pandas as pd
 
 from rdagent.app.binance_rd_loop.conf import BINANCE_FACTOR_PROP_SETTING
+from rdagent.components.coder.factor_coder.config import FACTOR_COSTEER_SETTINGS
 from rdagent.components.workflow.rd_loop import RDLoop
 from rdagent.core.exception import CoderError, FactorEmptyError
 from rdagent.log import rdagent_logger as logger
@@ -206,6 +207,13 @@ def main(
     """
     if not checkout_path is None:
         checkout = Path(checkout_path)
+
+    # Sync data_folder paths to the global singleton so that
+    # FactorFBWorkspace.execute() picks up Binance-specific paths
+    # even when resuming from a --path pickle (where module-level
+    # side-effects in factor_coder.py are not re-executed).
+    FACTOR_COSTEER_SETTINGS.data_folder = BINANCE_FACTOR_PROP_SETTING.data_folder
+    FACTOR_COSTEER_SETTINGS.data_folder_debug = BINANCE_FACTOR_PROP_SETTING.data_folder_debug
 
     if path is None:
         factor_loop = BinanceFactorRDLoop(BINANCE_FACTOR_PROP_SETTING)
