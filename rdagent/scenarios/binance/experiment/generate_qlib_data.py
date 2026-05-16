@@ -36,10 +36,9 @@ def h5_to_csv(h5_path: Path, csv_dir: Path) -> None:
     df = df.reset_index().rename(columns={"datetime": "date", "instrument": "symbol"})
 
     csv_dir.mkdir(parents=True, exist_ok=True)
+    all_cols = ["symbol", "date"] + [c for c in df.columns if c not in ("symbol", "date")]
     for symbol, grp in df.groupby("symbol"):
-        grp[["symbol", "date", "open", "high", "low", "close", "volume"]].to_csv(
-            csv_dir / f"{symbol}.csv", index=False
-        )
+        grp[all_cols].to_csv(csv_dir / f"{symbol}.csv", index=False)
     print(f"CSV files written to {csv_dir}")
 
 
@@ -80,11 +79,13 @@ def generate_qlib_data(h5_path: Path, qlib_dir: Path, freq: str = "60min", dump_
     h5_to_csv(h5_path, csv_dir)
 
     if dump_bin_path is not None:
+        df = pd.read_hdf(h5_path, key="data")
+        fields = ",".join(c.lstrip("$") for c in df.columns)
         cmd = [
             sys.executable, str(dump_bin_path), "dump_all",
             "--data_path", str(csv_dir),
             "--qlib_dir", str(qlib_dir),
-            "--include_fields", "open,high,low,close,volume",
+            "--include_fields", fields,
             "--symbol_field_name", "symbol",
             "--date_field_name", "date",
             "--freq", freq,
@@ -95,12 +96,14 @@ def generate_qlib_data(h5_path: Path, qlib_dir: Path, freq: str = "60min", dump_
         generate_calendar(qlib_dir, freq)
         print(f"Qlib binary data generated at {qlib_dir}")
     else:
+        df = pd.read_hdf(h5_path, key="data")
+        fields = ",".join(c.lstrip("$") for c in df.columns)
         print(
             "\nCSV files are ready. To generate Qlib binary data, run in your qlib environment:\n\n"
             f"  python dump_bin.py dump_all \\\n"
             f"    --data_path {csv_dir} \\\n"
             f"    --qlib_dir {qlib_dir} \\\n"
-            f"    --include_fields open,high,low,close,volume \\\n"
+            f"    --include_fields {fields} \\\n"
             f"    --symbol_field_name symbol \\\n"
             f"    --date_field_name date \\\n"
             f"    --freq {freq}\n\n"
