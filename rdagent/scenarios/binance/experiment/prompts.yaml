@@ -26,14 +26,15 @@ binance_factor_interface: |-
     - "datetime" (level 0): Timestamp type, {{ freq_desc }} frequency (e.g., Timestamp('2024-01-01 00:00:00'))
     - "instrument" (level 1): str type, cryptocurrency symbol (e.g., 'BTCUSDT', 'ETHUSDT')
   - Columns:
-    - Price & Volume: $open (float64), $high (float64), $low (float64), $close (float64), $volume (float64)
-    - Open Interest: $oi (float64) — total open interest in USDT value
+    - Price & Volume: $open (float64), $high (float64), $low (float64), $close (float64), $volume (float64), $quote_volume (float64), $count (float64)
+    - Taker Buy/Sell: $taker_buy_vol (float64), $taker_buy_quote_vol (float64), $taker_sell_vol (float64), $taker_sell_quote_vol (float64) — aggressive buy/sell volume and notional
+    - Open Interest: $oi (float64) — total open interest in contracts, $oi_value (float64) — total open interest in USDT value
     - Top Trader Long/Short Ratio (by position): $top_ls_pos (float64) — >1 means top traders are net long
     - Top Trader Long/Short Ratio (by account count): $top_ls_acc (float64) — >1 means more top trader accounts are long
     - Global Long/Short Account Ratio: $global_ls (float64) — >1 means majority of accounts hold long positions
     - Taker Buy/Sell Volume Ratio: $taker_ls (float64) — >1 means aggressive buying (takers buying)
     - Funding Rate: $funding_rate (float64) — positive means longs pay shorts (bullish sentiment costs)
-  Note: Some columns (especially $oi, $top_ls_pos, $top_ls_acc, $global_ls, $taker_ls, $funding_rate) may contain NaN values for certain bars or instruments. Handle NaN gracefully in your factor computation.
+  Note: Some columns (especially $oi, $oi_value, $top_ls_pos, $top_ls_acc, $global_ls, $taker_ls, $funding_rate) may contain NaN values for certain bars or instruments. Handle NaN gracefully in your factor computation.
 
   OUTPUT DATA FORMAT: The output "result.h5" must have the same MultiIndex structure:
   - Index: pd.MultiIndex with levels ("datetime", "instrument") — datetime is Timestamp, instrument is str

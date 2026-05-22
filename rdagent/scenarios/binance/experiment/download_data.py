@@ -9,8 +9,9 @@ Output files:
   - pv_debug.h5     subset: first 5 coins, 6 months around midpoint
 
 Index:  MultiIndex (datetime, instrument)
-Columns: $open, $high, $low, $close, $volume,
-         $oi, $top_ls_pos, $top_ls_acc, $global_ls, $taker_ls, $funding_rate
+Columns: $open, $high, $low, $close, $volume, $quote_volume, $count,
+         $taker_buy_vol, $taker_buy_quote_vol, $taker_sell_vol, $taker_sell_quote_vol,
+         $oi, $oi_value, $top_ls_pos, $top_ls_acc, $global_ls, $taker_ls, $funding_rate
 
 Usage:
     python download_data.py                          # default: 1h klines + metrics
@@ -32,7 +33,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-BASE_URL = "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"
+BASE_URL = "https://data.binance.vision"
 OUTPUT_DIR = Path(__file__).resolve().parent / "factor_data_template"
 
 log = logging.getLogger("download_binance_data")
@@ -59,7 +60,8 @@ SYMBOLS = [
 ]
 
 METRICS_COL_MAP = {
-    "sum_open_interest_value": "$oi",
+    "sum_open_interest": "$oi",
+    "sum_open_interest_value": "$oi_value",
     "sum_toptrader_long_short_ratio": "$top_ls_pos",
     "count_toptrader_long_short_ratio": "$top_ls_acc",
     "count_long_short_ratio": "$global_ls",
@@ -114,18 +116,25 @@ def _download_klines(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp, 
     full = full.rename(columns={
         "col_1": "$open", "col_2": "$high", "col_3": "$low",
         "col_4": "$close", "col_5": "$volume",
+        "col_7": "$quote_volume", "col_8": "$count",
+        "col_9": "$taker_buy_vol", "col_10": "$taker_buy_quote_vol",
     })
     full = full.set_index("datetime").sort_index()
     full = full[~full.index.duplicated(keep="first")]
-    full = full[["$open", "$high", "$low", "$close", "$volume"]].astype(np.float64)
+    keep = ["$open", "$high", "$low", "$close", "$volume",
+            "$quote_volume", "$count", "$taker_buy_vol", "$taker_buy_quote_vol"]
+    full = full[keep].astype(np.float64)
+    # Derive taker sell side from total - taker buy
+    full["$taker_sell_vol"] = full["$volume"] - full["$taker_buy_vol"]
+    full["$taker_sell_quote_vol"] = full["$quote_volume"] - full["$taker_buy_quote_vol"]
     return full.loc[start_dt:end_dt]
 
 
 def _download_metrics(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp, interval: str) -> pd.DataFrame | None:
     """Download daily metrics zips (5-min granularity), resample to target interval.
 
-    Returns DataFrame with columns: $oi, $top_ls_pos, $top_ls_acc, $global_ls, $taker_ls
-    indexed by datetime.
+    Returns DataFrame with columns: $oi, $oi_value, $top_ls_pos, $top_ls_acc,
+    $global_ls, $taker_ls indexed by datetime.
     """
     rule = INTERVAL_RESAMPLE.get(interval, "1h")
     chunks = []

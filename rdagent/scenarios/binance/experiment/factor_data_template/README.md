@@ -27,10 +27,19 @@ $open: open price of the coin at that bar.
 $close: close price of the coin at that bar.
 $high: high price of the coin at that bar.
 $low: low price of the coin at that bar.
-$volume: volume of the coin at that bar.
+$volume: volume (base asset) of the coin at that bar.
+$quote_volume: volume in quote asset (USDT) at that bar.
+$count: number of trades at that bar.
+
+## Taker buy/sell volume
+$taker_buy_vol: taker buy volume (base asset) — volume from aggressive buy orders.
+$taker_buy_quote_vol: taker buy volume in quote asset (USDT) — notional from aggressive buy orders.
+$taker_sell_vol: taker sell volume (base asset) — volume from aggressive sell orders.
+$taker_sell_quote_vol: taker sell volume in quote asset (USDT) — notional from aggressive sell orders.
 
 ## Open interest
-$oi: total open interest in USDT value for the symbol at that bar. Higher OI indicates more capital deployed in the market.
+$oi: total open interest in contracts (number of outstanding positions) for the symbol at that bar.
+$oi_value: total open interest in USDT value for the symbol at that bar. Higher OI indicates more capital deployed in the market.
 
 ## Top trader long/short ratio (by position)
 $top_ls_pos: the ratio of top traders' long vs short positions by position size. Values > 1 indicate top traders are net long; < 1 indicate net short.
