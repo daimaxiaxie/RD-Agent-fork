@@ -44,7 +44,7 @@ SYMBOLS = [
     # 强动能
     "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT",
     "DOTUSDT", "LINKUSDT", "UNIUSDT", "LTCUSDT", "ATOMUSDT",
-    "TRXUSDT", "TONUSDT", "FTMUSDT", "AAVEUSDT",
+    "TRXUSDT", "TONUSDT", "AAVEUSDT",
     "CRVUSDT", "SNXUSDT", "GRTUSDT", "FILUSDT", "STXUSDT",
     "IMXUSDT", "ETCUSDT", "BCHUSDT", "SANDUSDT", "ALGOUSDT",
     "ICPUSDT", "FLOWUSDT", "THETAUSDT", "AXSUSDT",
@@ -55,8 +55,8 @@ SYMBOLS = [
     "OPUSDT", "ARBUSDT", "APTUSDT", "NEARUSDT", "INJUSDT",
     "TIAUSDT", "SUIUSDT", "FETUSDT", "WLDUSDT",
     "CFXUSDT", "MASKUSDT", "DYDXUSDT", "1000FLOKIUSDT", "ONDOUSDT",
-    "BOMEUSDT", "MEMEUSDT", "MKRUSDT", "COMPUSDT", "ENAUSDT",
-    "GOATUSDT", "NEIROUSDT", "MYROUSDT", "JUPUSDT", "WIFUSDT",
+    "BOMEUSDT", "MEMEUSDT", "COMPUSDT", "ENAUSDT",
+    "GOATUSDT", "NEIROUSDT", "JUPUSDT", "WIFUSDT",
 ]
 
 METRICS_COL_MAP = {
@@ -164,7 +164,7 @@ def _download_metrics(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp,
     # Concurrent download of daily zips
     chunks = []
     missing_days = 0
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         future_to_date = {
             pool.submit(_download_zip, url): date_str
             for date_str, url in date_urls
