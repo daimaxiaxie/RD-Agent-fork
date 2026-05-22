@@ -72,12 +72,22 @@ METRICS_COL_MAP = {
 INTERVAL_RESAMPLE = {"1h": "1h", "4h": "4h", "1d": "1D"}
 
 
-def _download_zip(url: str) -> pd.DataFrame | None:
-    try:
-        resp = urllib.request.urlopen(url)
-        data = resp.read()
-    except urllib.error.HTTPError:
-        return None
+def _download_zip(url: str, timeout: int = 60, retries: int = 2) -> pd.DataFrame | None:
+    data = None
+    for attempt in range(retries + 1):
+        try:
+            resp = urllib.request.urlopen(url, timeout=timeout)
+            data = resp.read()
+            break
+        except urllib.error.HTTPError:
+            return None
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if attempt < retries:
+                import time
+                time.sleep(1 * (attempt + 1))
+            else:
+                log.warning("Request failed after %d retries: %s", retries, e)
+                return None
 
     with tempfile.TemporaryDirectory() as tmp:
         zip_path = Path(tmp) / "data.zip"
@@ -133,24 +143,45 @@ def _download_klines(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp, 
 def _download_metrics(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp, interval: str) -> pd.DataFrame | None:
     """Download daily metrics zips (5-min granularity), resample to target interval.
 
+    Uses concurrent downloads to speed up the per-day requests.
     Returns DataFrame with columns: $oi, $oi_value, $top_ls_pos, $top_ls_acc,
     $global_ls, $taker_ls indexed by datetime.
     """
     rule = INTERVAL_RESAMPLE.get(interval, "1h")
-    chunks = []
     current = start_dt.normalize()
     end_norm = end_dt.normalize() + pd.Timedelta(days=1)
-    missing_days = 0
+
+    # Build all (date, url) pairs
+    date_urls = []
     while current < end_norm:
         date_str = current.strftime("%Y-%m-%d")
         url = f"{BASE_URL}/data/futures/um/daily/metrics/{symbol}/{symbol}-metrics-{date_str}.zip"
-        df = _download_zip(url)
-        if df is None:
-            missing_days += 1
-            current += pd.Timedelta(days=1)
-            continue
-        chunks.append(df)
+        date_urls.append((date_str, url))
         current += pd.Timedelta(days=1)
+
+    total_days = len(date_urls)
+
+    # Concurrent download of daily zips
+    chunks = []
+    missing_days = 0
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        future_to_date = {
+            pool.submit(_download_zip, url): date_str
+            for date_str, url in date_urls
+        }
+        done_count = 0
+        for future in as_completed(future_to_date):
+            done_count += 1
+            try:
+                df = future.result()
+            except Exception:
+                df = None
+            if df is None:
+                missing_days += 1
+            else:
+                chunks.append(df)
+            if done_count % 200 == 0 or done_count == total_days:
+                log.info("  %s metrics: %d/%d days downloaded", symbol, done_count, total_days)
 
     if not chunks:
         log.warning("  %s metrics: no data available", symbol)
@@ -168,8 +199,17 @@ def _download_metrics(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp,
     available = {k: v for k, v in METRICS_COL_MAP.items() if k in full.columns}
     result = full[list(available.keys())].rename(columns=available).astype(np.float64)
 
-    # Resample 5min → target interval using last() to match kline bar boundaries
-    result = result.resample(rule).last()
+    # Resample 5min → target interval with semantic-correct aggregation
+    # - OI / OI_value: snapshot at period end (instantaneous stock variable)
+    # - Ratios (top_ls_pos, top_ls_acc, global_ls, taker_ls): period average
+    #   (ratios are flow-like over the window; last() is too noisy)
+    agg_map = {}
+    for col in result.columns:
+        if col in ("$oi", "$oi_value"):
+            agg_map[col] = "last"
+        else:
+            agg_map[col] = "mean"
+    result = result.resample(rule).agg(agg_map)
 
     return result.loc[start_dt:end_dt]
 
@@ -293,6 +333,8 @@ def main():
             return kline_df
 
         merged_frames = []
+        total_symbols = len(symbol_kline_idx)
+        finished_count = 0
         with ThreadPoolExecutor(max_workers=4) as pool:
             futures = {
                 pool.submit(_download_and_merge, symbol, df): symbol
@@ -303,12 +345,14 @@ def main():
                 try:
                     merged = future.result()
                     merged_frames.append(merged)
-                    log.info("Finished metrics %s", symbol)
+                    finished_count += 1
+                    log.info("Finished metrics %s (%d/%d)", symbol, finished_count, total_symbols)
                 except Exception as e:
                     log.warning("Error downloading metrics for %s: %s", symbol, e)
                     # Fall back to kline-only for this symbol
                     idx = list(symbol_kline_idx.keys()).index(symbol)
                     merged_frames.append(all_frames[idx])
+                    finished_count += 1
 
         all_frames = merged_frames
     elif include_metrics:
