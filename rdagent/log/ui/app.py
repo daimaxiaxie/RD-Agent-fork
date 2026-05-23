@@ -34,6 +34,8 @@ from rdagent.scenarios.qlib.experiment.model_experiment import (
     QlibModelExperiment,
     QlibModelScenario,
 )
+from rdagent.scenarios.binance.experiment.factor_experiment import BinanceFactorScenario
+from rdagent.app.binance_rd_loop.conf import BinanceFactorBasePropSetting
 from rdagent.scenarios.qlib.experiment.quant_experiment import QlibQuantScenario
 
 st.set_page_config(layout="wide", page_title="RD-Agent", page_icon="🎓", initial_sidebar_state="expanded")
@@ -60,11 +62,42 @@ QLIB_SELECTED_METRICS = [
     "1day.excess_return_with_cost.max_drawdown",
 ]
 
+
+def get_selected_metrics(scenario, result_index=None):
+    """Return the correct metric keys based on scenario frequency.
+
+    If result_index is provided, auto-detect frequency from available keys.
+    """
+    if isinstance(scenario, BinanceFactorScenario):
+        freq = BinanceFactorBasePropSetting().freq
+        metrics = [
+            "IC",
+            f"{freq}.excess_return_with_cost.annualized_return",
+            f"{freq}.excess_return_with_cost.information_ratio",
+            f"{freq}.excess_return_with_cost.max_drawdown",
+        ]
+        # Auto-detect freq from result if config freq doesn't match
+        if result_index is not None:
+            for key in result_index:
+                if "excess_return_with_cost.annualized_return" in key:
+                    actual_freq = key.split(".")[0]
+                    if actual_freq != freq:
+                        metrics = [
+                            "IC",
+                            f"{actual_freq}.excess_return_with_cost.annualized_return",
+                            f"{actual_freq}.excess_return_with_cost.information_ratio",
+                            f"{actual_freq}.excess_return_with_cost.max_drawdown",
+                        ]
+                    break
+        return metrics
+    return list(QLIB_SELECTED_METRICS)
+
 SIMILAR_SCENARIOS = (
     QlibModelScenario,
     QlibFactorScenario,
     QlibFactorFromReportScenario,
     QlibQuantScenario,
+    BinanceFactorScenario,
     KGScenario,
 )
 
@@ -172,14 +205,14 @@ def get_msgs_until(end_func: Callable[[Message], bool] = lambda _: True):
                     if "runner result" in tags:
                         # factor baseline exp metrics
                         if (
-                            isinstance(state.scenario, (QlibFactorScenario, QlibQuantScenario))
+                            isinstance(state.scenario, (QlibFactorScenario, QlibQuantScenario, BinanceFactorScenario))
                             and state.alpha_baseline_metrics is None
                         ):
                             try:
                                 sms = msg.content.based_experiments[0].result
                             except AttributeError:
                                 sms = msg.content.based_experiments[0].__dict__["result"]
-                            sms = sms.loc[QLIB_SELECTED_METRICS]
+                            sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
                             sms.name = "Alpha Base"
                             state.alpha_baseline_metrics = sms
 
@@ -196,10 +229,11 @@ def get_msgs_until(end_func: Callable[[Message], bool] = lambda _: True):
                                         QlibFactorFromReportScenario,
                                         QlibFactorScenario,
                                         QlibQuantScenario,
+                                        BinanceFactorScenario,
                                     ),
                                 ):
                                     sms_all = sms
-                                    sms = sms.loc[QLIB_SELECTED_METRICS]
+                                    sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
                                 sms.name = f"Baseline"
                                 state.metric_series.append(sms)
                                 state.all_metric_series.append(sms_all)
@@ -216,10 +250,11 @@ def get_msgs_until(end_func: Callable[[Message], bool] = lambda _: True):
                                 QlibFactorFromReportScenario,
                                 QlibFactorScenario,
                                 QlibQuantScenario,
+                                BinanceFactorScenario,
                             ),
                         ):
                             sms_all = sms
-                            sms = sms.loc[QLIB_SELECTED_METRICS]
+                            sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
 
                         sms.name = f"Round {state.lround}"
                         sms_all.name = f"Round {state.lround}"
@@ -444,7 +479,7 @@ def summary_window():
                 display_hypotheses(state.hypotheses, state.h_decisions, show_true_only)
 
             with chart_c:
-                if isinstance(state.scenario, QlibFactorScenario) and state.alpha_baseline_metrics is not None:
+                if isinstance(state.scenario, (QlibFactorScenario, BinanceFactorScenario)) and state.alpha_baseline_metrics is not None:
                     df = pd.DataFrame([state.alpha_baseline_metrics] + state.metric_series[1:])
                 elif isinstance(state.scenario, QlibQuantScenario) and state.alpha_baseline_metrics is not None:
                     df = pd.DataFrame([state.alpha_baseline_metrics] + state.metric_series[1:])
@@ -623,7 +658,7 @@ def feedback_window():
 
             if state.lround > 0 and isinstance(
                 state.scenario,
-                (QlibModelScenario, QlibFactorScenario, QlibFactorFromReportScenario, QlibQuantScenario, KGScenario),
+                (QlibModelScenario, QlibFactorScenario, QlibFactorFromReportScenario, QlibQuantScenario, BinanceFactorScenario, KGScenario),
             ):
                 if fbr := state.msgs[round]["runner result"]:
                     try:
