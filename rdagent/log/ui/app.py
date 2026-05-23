@@ -526,10 +526,12 @@ def summary_window():
                     if show_true_only and len(state.hypotheses) >= len(state.metric_series):
                         if state.alpha_baseline_metrics is not None:
                             selected = ["Alpha Base"] + [
-                                i for i in df.index if i == "Baseline" or state.h_decisions[int(i[6:])]
+                                i for i in df.index
+                                if i == "Baseline" or (i.startswith("Round ") and i[6:].isdigit() and state.h_decisions[int(i[6:])])
                             ]
                         else:
-                            selected = [i for i in df.index if i == "Baseline" or state.h_decisions[int(i[6:])]]
+                            selected = [i for i in df.index
+                                if i == "Baseline" or (i.startswith("Round ") and i[6:].isdigit() and state.h_decisions[int(i[6:])])]
                         df = df.loc[selected]
                     if df.shape[0] == 1:
                         st.table(df.iloc[0])
