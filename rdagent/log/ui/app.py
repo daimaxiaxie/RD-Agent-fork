@@ -67,14 +67,15 @@ def get_selected_metrics(scenario, result_index=None):
     """Return the correct metric keys based on scenario frequency.
 
     If result_index is provided, auto-detect frequency from available keys.
+    Only returns keys that actually exist in result_index to avoid KeyError.
     """
     if isinstance(scenario, BinanceFactorScenario):
         freq = BinanceFactorBasePropSetting().freq
-        metrics = [
-            "IC",
-            f"{freq}.excess_return_with_cost.annualized_return",
-            f"{freq}.excess_return_with_cost.information_ratio",
-            f"{freq}.excess_return_with_cost.max_drawdown",
+        candidates = [
+            ["IC"],
+            [f"{freq}.excess_return_with_cost.annualized_return"],
+            [f"{freq}.excess_return_with_cost.information_ratio"],
+            [f"{freq}.excess_return_with_cost.max_drawdown"],
         ]
         # Auto-detect freq from result if config freq doesn't match
         if result_index is not None:
@@ -82,14 +83,16 @@ def get_selected_metrics(scenario, result_index=None):
                 if "excess_return_with_cost.annualized_return" in key:
                     actual_freq = key.split(".")[0]
                     if actual_freq != freq:
-                        metrics = [
-                            "IC",
-                            f"{actual_freq}.excess_return_with_cost.annualized_return",
-                            f"{actual_freq}.excess_return_with_cost.information_ratio",
-                            f"{actual_freq}.excess_return_with_cost.max_drawdown",
+                        candidates = [
+                            ["IC"],
+                            [f"{actual_freq}.excess_return_with_cost.annualized_return"],
+                            [f"{actual_freq}.excess_return_with_cost.information_ratio"],
+                            [f"{actual_freq}.excess_return_with_cost.max_drawdown"],
                         ]
                     break
-        return metrics
+        # Only return keys that exist in the result
+        metrics = [c[0] for c in candidates if result_index is None or c[0] in result_index]
+        return metrics if metrics else list(QLIB_SELECTED_METRICS)
     return list(QLIB_SELECTED_METRICS)
 
 SIMILAR_SCENARIOS = (
@@ -421,6 +424,9 @@ def metrics_window(df: pd.DataFrame, R: int, C: int, *, height: int = 300, color
     for ci, col in enumerate(df.columns):
         row = ci // C + 1
         col_num = ci % C + 1
+        marker_dict = dict(size=10)
+        if colors and ci < len(colors):
+            marker_dict["color"] = colors[ci]
         fig.add_trace(
             go.Scatter(
                 x=df.index,
@@ -428,7 +434,7 @@ def metrics_window(df: pd.DataFrame, R: int, C: int, *, height: int = 300, color
                 name=col,
                 mode="lines+markers",
                 connectgaps=True,
-                marker=dict(size=10, color=colors[ci]) if colors else dict(size=10),
+                marker=marker_dict,
                 hovertext=hover_texts,
                 hovertemplate="%{hovertext}<br><br><span style='color: black'>%{x} Value:</span> <span style='color: blue'>%{y}</span><extra></extra>",
             ),
@@ -501,7 +507,8 @@ def summary_window():
                         fig.update_layout(xaxis_title="Loop Round", yaxis_title=None)
                         st.plotly_chart(fig)
                     else:
-                        metrics_window(df, 1, 4, height=300, colors=["red", "blue", "orange", "green"])
+                        ncols = min(df.shape[1], 4)
+                        metrics_window(df, 1, ncols, height=300, colors=["red", "blue", "orange", "green"])
 
     elif isinstance(state.scenario, GeneralModelScenario):
         with st.container(border=True):
