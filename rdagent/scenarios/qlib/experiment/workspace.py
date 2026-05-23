@@ -1,4 +1,5 @@
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -31,12 +32,23 @@ class QlibFBWorkspace(FBWorkspace):
             import shutil
             shutil.rmtree(mlruns_dir, ignore_errors=True)
 
-        # Run the Qlib backtest
+        # Run the Qlib backtest (retry once on MLflow metric race condition)
         execute_qlib_log = qtde.check_output(
             local_path=str(self.workspace_path),
             entry=f"qrun {qlib_config_name}",
             env=run_env,
         )
+        if "malformed" in execute_qlib_log.lower():
+            logger.warning("Qlib run hit MLflow metric race condition, retrying after 5s...")
+            import shutil
+            if mlruns_dir.exists():
+                shutil.rmtree(mlruns_dir, ignore_errors=True)
+            time.sleep(5)
+            execute_qlib_log = qtde.check_output(
+                local_path=str(self.workspace_path),
+                entry=f"qrun {qlib_config_name}",
+                env=run_env,
+            )
         logger.log_object(execute_qlib_log, tag="Qlib_execute_log")
 
         execute_log = qtde.check_output(
