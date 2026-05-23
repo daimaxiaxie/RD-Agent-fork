@@ -66,33 +66,48 @@ QLIB_SELECTED_METRICS = [
 def get_selected_metrics(scenario, result_index=None):
     """Return the correct metric keys based on scenario frequency.
 
-    If result_index is provided, auto-detect frequency from available keys.
-    Only returns keys that actually exist in result_index to avoid KeyError.
+    If result_index is provided, auto-detect frequency from available keys
+    and only return keys that actually exist in result_index.
     """
-    if isinstance(scenario, BinanceFactorScenario):
+    # Determine target metric suffixes
+    suffixes = [
+        "IC",
+        "excess_return_with_cost.annualized_return",
+        "excess_return_with_cost.information_ratio",
+        "excess_return_with_cost.max_drawdown",
+    ]
+
+    if isinstance(scenario, BinanceFactorScenario) and result_index is not None:
+        # Auto-detect freq prefix from result keys
+        freq_prefix = None
+        for key in result_index:
+            if "excess_return_with_cost.annualized_return" in key:
+                # key is like "240min.excess_return_with_cost.annualized_return"
+                freq_prefix = key.split(".")[0]
+                break
+        if freq_prefix is not None:
+            # Build keys with detected freq prefix
+            metrics = []
+            for s in suffixes:
+                if s == "IC":
+                    if "IC" in result_index:
+                        metrics.append("IC")
+                else:
+                    full_key = f"{freq_prefix}.{s}"
+                    if full_key in result_index:
+                        metrics.append(full_key)
+            if metrics:
+                return metrics
+        # Fallback: try default freq from config
         freq = BinanceFactorBasePropSetting().freq
-        candidates = [
-            ["IC"],
-            [f"{freq}.excess_return_with_cost.annualized_return"],
-            [f"{freq}.excess_return_with_cost.information_ratio"],
-            [f"{freq}.excess_return_with_cost.max_drawdown"],
-        ]
-        # Auto-detect freq from result if config freq doesn't match
-        if result_index is not None:
-            for key in result_index:
-                if "excess_return_with_cost.annualized_return" in key:
-                    actual_freq = key.split(".")[0]
-                    if actual_freq != freq:
-                        candidates = [
-                            ["IC"],
-                            [f"{actual_freq}.excess_return_with_cost.annualized_return"],
-                            [f"{actual_freq}.excess_return_with_cost.information_ratio"],
-                            [f"{actual_freq}.excess_return_with_cost.max_drawdown"],
-                        ]
-                    break
-        # Only return keys that exist in the result
-        metrics = [c[0] for c in candidates if result_index is None or c[0] in result_index]
-        return metrics if metrics else list(QLIB_SELECTED_METRICS)
+        metrics = []
+        for s in suffixes:
+            if s == "IC":
+                metrics.append("IC")
+            else:
+                metrics.append(f"{freq}.{s}")
+        return metrics
+
     return list(QLIB_SELECTED_METRICS)
 
 SIMILAR_SCENARIOS = (
@@ -414,8 +429,10 @@ def display_hypotheses(hypotheses: dict[int, Hypothesis], decisions: dict[int, b
     st.markdown(df.style.apply(style_rows, axis=1).apply(style_columns, axis=0).to_html(), unsafe_allow_html=True)
 
 
-def metrics_window(df: pd.DataFrame, R: int, C: int, *, height: int = 300, colors: list[str] = None):
-    fig = make_subplots(rows=R, cols=C, subplot_titles=df.columns)
+def metrics_window(df: pd.DataFrame, *, height: int = 300, colors: list[str] = None):
+    C = min(df.shape[1], 4)
+    R = (df.shape[1] + C - 1) // C
+    fig = make_subplots(rows=R, cols=C, subplot_titles=list(df.columns))
 
     def hypothesis_hover_text(h: Hypothesis, d: bool = False):
         color = "green" if d else "black"
@@ -423,13 +440,15 @@ def metrics_window(df: pd.DataFrame, R: int, C: int, *, height: int = 300, color
         lines = textwrap.wrap(text, width=60)
         return f"<span style='color: {color};'>{'<br>'.join(lines)}</span>"
 
-    hover_texts = [
-        hypothesis_hover_text(state.hypotheses[int(i[6:])], state.h_decisions[int(i[6:])])
-        for i in df.index
-        if i != "Alpha Base" and i != "Baseline"
-    ]
-    if state.alpha_baseline_metrics is not None:
-        hover_texts = ["Baseline"] + hover_texts
+    hover_texts = []
+    for i in df.index:
+        if i == "Alpha Base" or i == "Baseline":
+            hover_texts.append(str(i))
+        else:
+            try:
+                hover_texts.append(hypothesis_hover_text(state.hypotheses[int(i[6:])], state.h_decisions[int(i[6:])]))
+            except (KeyError, ValueError, IndexError):
+                hover_texts.append(str(i))
     for ci, col in enumerate(df.columns):
         row = ci // C + 1
         col_num = ci % C + 1
@@ -520,8 +539,7 @@ def summary_window():
                             fig.update_layout(xaxis_title="Loop Round", yaxis_title=None)
                             st.plotly_chart(fig)
                         else:
-                            ncols = min(df.shape[1], 4)
-                            metrics_window(df, 1, ncols, height=300, colors=["red", "blue", "orange", "green"])
+                            metrics_window(df, height=300, colors=["red", "blue", "orange", "green"])
 
     elif isinstance(state.scenario, GeneralModelScenario):
         with st.container(border=True):
