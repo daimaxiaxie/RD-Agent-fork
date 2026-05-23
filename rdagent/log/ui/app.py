@@ -215,7 +215,10 @@ def get_msgs_until(end_func: Callable[[Message], bool] = lambda _: True):
                                 sms = msg.content.based_experiments[0].result
                             except AttributeError:
                                 sms = msg.content.based_experiments[0].__dict__["result"]
-                            sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
+                            try:
+                                sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
+                            except KeyError:
+                                pass
                             sms.name = "Alpha Base"
                             state.alpha_baseline_metrics = sms
 
@@ -236,7 +239,10 @@ def get_msgs_until(end_func: Callable[[Message], bool] = lambda _: True):
                                     ),
                                 ):
                                     sms_all = sms
-                                    sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
+                                    try:
+                                        sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
+                                    except KeyError:
+                                        pass
                                 sms.name = f"Baseline"
                                 state.metric_series.append(sms)
                                 state.all_metric_series.append(sms_all)
@@ -257,7 +263,10 @@ def get_msgs_until(end_func: Callable[[Message], bool] = lambda _: True):
                             ),
                         ):
                             sms_all = sms
-                            sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
+                            try:
+                                sms = sms.loc[get_selected_metrics(state.scenario, sms.index)]
+                            except KeyError:
+                                pass
 
                         sms.name = f"Round {state.lround}"
                         sms_all.name = f"Round {state.lround}"
@@ -466,6 +475,7 @@ def summary_window():
     if isinstance(state.scenario, SIMILAR_SCENARIOS):
         st.header("Summary📊", divider="rainbow", anchor="_summary")
         if state.lround == 0:
+            st.info("No loop data yet. Click **All Loops** or **Next Loop** in the sidebar to load logs.")
             return
         with st.container():
             # TODO: not fixed height
@@ -485,30 +495,33 @@ def summary_window():
                 display_hypotheses(state.hypotheses, state.h_decisions, show_true_only)
 
             with chart_c:
-                if isinstance(state.scenario, (QlibFactorScenario, BinanceFactorScenario)) and state.alpha_baseline_metrics is not None:
+                if not state.metric_series:
+                    st.info("No metrics data available yet.")
+                elif isinstance(state.scenario, (QlibFactorScenario, BinanceFactorScenario)) and state.alpha_baseline_metrics is not None:
                     df = pd.DataFrame([state.alpha_baseline_metrics] + state.metric_series[1:])
                 elif isinstance(state.scenario, QlibQuantScenario) and state.alpha_baseline_metrics is not None:
                     df = pd.DataFrame([state.alpha_baseline_metrics] + state.metric_series[1:])
                 else:
                     df = pd.DataFrame(state.metric_series)
-                if show_true_only and len(state.hypotheses) >= len(state.metric_series):
-                    if state.alpha_baseline_metrics is not None:
-                        selected = ["Alpha Base"] + [
-                            i for i in df.index if i == "Baseline" or state.h_decisions[int(i[6:])]
-                        ]
-                    else:
-                        selected = [i for i in df.index if i == "Baseline" or state.h_decisions[int(i[6:])]]
-                    df = df.loc[selected]
-                if df.shape[0] == 1:
-                    st.table(df.iloc[0])
-                elif df.shape[0] > 1:
-                    if df.shape[1] == 1:
-                        fig = px.line(df, x=df.index, y=df.columns, markers=True)
-                        fig.update_layout(xaxis_title="Loop Round", yaxis_title=None)
-                        st.plotly_chart(fig)
-                    else:
-                        ncols = min(df.shape[1], 4)
-                        metrics_window(df, 1, ncols, height=300, colors=["red", "blue", "orange", "green"])
+                if state.metric_series:
+                    if show_true_only and len(state.hypotheses) >= len(state.metric_series):
+                        if state.alpha_baseline_metrics is not None:
+                            selected = ["Alpha Base"] + [
+                                i for i in df.index if i == "Baseline" or state.h_decisions[int(i[6:])]
+                            ]
+                        else:
+                            selected = [i for i in df.index if i == "Baseline" or state.h_decisions[int(i[6:])]]
+                        df = df.loc[selected]
+                    if df.shape[0] == 1:
+                        st.table(df.iloc[0])
+                    elif df.shape[0] > 1:
+                        if df.shape[1] == 1:
+                            fig = px.line(df, x=df.index, y=df.columns, markers=True)
+                            fig.update_layout(xaxis_title="Loop Round", yaxis_title=None)
+                            st.plotly_chart(fig)
+                        else:
+                            ncols = min(df.shape[1], 4)
+                            metrics_window(df, 1, ncols, height=300, colors=["red", "blue", "orange", "green"])
 
     elif isinstance(state.scenario, GeneralModelScenario):
         with st.container(border=True):
