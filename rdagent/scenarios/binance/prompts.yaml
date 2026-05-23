@@ -149,8 +149,8 @@ hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  {% set ar = freq ~ ".excess_return_without_cost.annualized_return" %}
-  {% set md = freq ~ ".excess_return_without_cost.max_drawdown" %}
+  {% set ar = freq ~ ".excess_return_with_cost.annualized_return" %}
+  {% set md = freq ~ ".excess_return_with_cost.max_drawdown" %}
   Backtest Result: {{ experiment.result.loc[["IC", ar, md]] }}
   {% endif %}
   Observation: {{ feedback.observations }}
@@ -170,8 +170,8 @@ last_hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  {% set ar = freq ~ ".excess_return_without_cost.annualized_return" %}
-  {% set md = freq ~ ".excess_return_without_cost.max_drawdown" %}
+  {% set ar = freq ~ ".excess_return_with_cost.annualized_return" %}
+  {% set md = freq ~ ".excess_return_with_cost.max_drawdown" %}
   Backtest Result: {{ experiment.result.loc[["IC", ar, md]] }}
   {% endif %}
   Training Log:
@@ -194,8 +194,8 @@ sota_hypothesis_and_feedback: |-
   {% endfor %}
   ## Backtest Analysis and Feedback:
   {% if experiment.result is not none %}
-  {% set ar = freq ~ ".excess_return_without_cost.annualized_return" %}
-  {% set md = freq ~ ".excess_return_without_cost.max_drawdown" %}
+  {% set ar = freq ~ ".excess_return_with_cost.annualized_return" %}
+  {% set md = freq ~ ".excess_return_with_cost.max_drawdown" %}
   Backtest Result: {{ experiment.result.loc[["IC", ar, md]] }}
   {% endif %}
   Training Log: {{ experiment.stdout }}

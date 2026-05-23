@@ -12,17 +12,30 @@ data_handler_config: &data_handler_config
     end_time: {{ test_end | default("null", true) }}
     instruments: *market
     data_loader:
-        class: qlib.contrib.data.loader.Alpha158DL
+        class: NestedDataLoader
         kwargs:
-            freq: {{ freq }}
-            config:
-                label:
-                    - ["Ref($close, -1)/$close - 1"]
-                    - ["LABEL0"]
-                feature:
-                    - {{ feature_expressions }}
-                    - {{ feature_names }}
+            dataloader_l:
+                - class: qlib.contrib.data.loader.Alpha158DL
+                  kwargs:
+                    freq: {{ freq }}
+                    config:
+                        label:
+                            - ["Ref($close, -1)/$close - 1"]
+                            - ["LABEL0"]
+                        feature:
+                            - {{ feature_expressions }}
+                            - {{ feature_names }}
 
+    infer_processors:
+        - class: RobustZScoreNorm
+          kwargs:
+              fields_group: feature
+              clip_outlier: true
+              fit_start_time: {{ train_start | default("2024-01-01", true) }}
+              fit_end_time: {{ train_end | default("2024-09-30", true) }}
+        - class: Fillna
+          kwargs:
+              fields_group: feature
     learn_processors:
         - class: DropnaLabel
         - class: CSZScoreNorm

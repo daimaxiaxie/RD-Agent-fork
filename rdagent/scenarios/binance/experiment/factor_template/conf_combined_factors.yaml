@@ -30,12 +30,6 @@ data_handler_config: &data_handler_config
                     config: "combined_factors_df.parquet"
 
     infer_processors:
-        - class: RobustZScoreNorm
-          kwargs:
-              fields_group: feature
-              clip_outlier: true
-              fit_start_time: {{ train_start | default("2024-01-01", true) }}
-              fit_end_time: {{ train_end | default("2024-09-30", true) }}
         - class: Fillna
           kwargs:
               fields_group: feature
