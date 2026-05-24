@@ -12,8 +12,11 @@ LLM endpoint is configured via environment variables (same as Claude Code CLI):
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import nest_asyncio
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_TOOLS = ["WebSearch", "WebFetch"]
 
@@ -34,12 +37,23 @@ def agent_chat_completion(user_prompt: str, system_prompt: str, json_mode: bool 
     options = ClaudeAgentOptions(allowed_tools=ALLOWED_TOOLS)
 
     async def _query():
+        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
         async for message in query(prompt=full_prompt, options=options):
-            if hasattr(message, "content"):
+            logger.debug("SDK message type: %s", type(message).__name__)
+            if isinstance(message, AssistantMessage):
                 for block in message.content:
-                    if hasattr(block, "text"):
+                    if isinstance(block, TextBlock):
                         result_parts.append(block.text)
+            elif isinstance(message, ResultMessage):
+                logger.debug("ResultMessage is_error=%s result=%r", message.is_error, message.result)
+                if message.is_error:
+                    raise RuntimeError(f"Claude Agent SDK error: {message.result}")
+                if isinstance(message.result, str) and message.result:
+                    result_parts.append(message.result)
 
     nest_asyncio.apply()
     asyncio.run(_query())
-    return "".join(result_parts)
+    result = "".join(result_parts)
+    if not result:
+        raise RuntimeError("Claude Agent SDK returned empty response")
+    return result
