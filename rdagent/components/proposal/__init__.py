@@ -15,6 +15,17 @@ from rdagent.utils.agent.tpl import T
 from rdagent.utils.workflow import wait_retry
 
 
+def _chat_completion(user_prompt: str, system_prompt: str, json_mode: bool = False) -> str:
+    from rdagent.components.proposal.agent_conf import AGENT_TOOL_SETTINGS
+
+    if AGENT_TOOL_SETTINGS.enable:
+        from rdagent.components.proposal.agent_call import agent_chat_completion
+        return agent_chat_completion(user_prompt, system_prompt, json_mode=json_mode)
+    return APIBackend().build_messages_and_create_chat_completion(
+        user_prompt, system_prompt, json_mode=json_mode
+    )
+
+
 class LLMHypothesisGen(HypothesisGen):
     def __init__(self, scen: Scenario):
         super().__init__(scen)
@@ -56,9 +67,7 @@ class LLMHypothesisGen(HypothesisGen):
             RAG=context_dict["RAG"],
         )
 
-        resp = APIBackend().build_messages_and_create_chat_completion(
-            user_prompt, system_prompt, json_mode=json_flag, json_target_type=dict[str, str]
-        )
+        resp = _chat_completion(user_prompt, system_prompt, json_mode=json_flag)
 
         hypothesis = self.convert_response(resp)
 
