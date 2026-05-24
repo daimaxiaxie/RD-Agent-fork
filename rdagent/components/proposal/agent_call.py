@@ -48,5 +48,5 @@ def agent_chat_completion(user_prompt: str, system_prompt: str, json_mode: bool 
     result = "".join(result_parts)
     if not result:
         raise RuntimeError("Claude Agent SDK returned empty response")
-    logger.info("Agent SDK response (first 500 chars): %s", result[:500])
+    logger.info(f"Agent SDK response (first 500 chars): {result[:500]}")
     return result
