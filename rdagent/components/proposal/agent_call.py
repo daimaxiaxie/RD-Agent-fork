@@ -37,19 +37,14 @@ def agent_chat_completion(user_prompt: str, system_prompt: str, json_mode: bool 
     options = ClaudeAgentOptions(allowed_tools=ALLOWED_TOOLS)
 
     async def _query():
-        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
+        from claude_agent_sdk import ResultMessage
         async for message in query(prompt=full_prompt, options=options):
             logger.debug("SDK message type: %s", type(message).__name__)
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        result_parts.append(block.text)
-            elif isinstance(message, ResultMessage):
-                logger.debug("ResultMessage is_error=%s result=%r", message.is_error, message.result)
+            if isinstance(message, ResultMessage):
+                logger.debug("ResultMessage is_error=%s result=%r", message.is_error, message.result[:100])
                 if message.is_error:
                     raise RuntimeError(f"Claude Agent SDK error: {message.result}")
-                if isinstance(message.result, str) and message.result:
-                    result_parts.append(message.result)
+                result_parts.append(message.result)
 
     nest_asyncio.apply()
     asyncio.run(_query())
