@@ -12,7 +12,6 @@ LLM endpoint is configured via environment variables (same as Claude Code CLI):
 from __future__ import annotations
 
 import asyncio
-import logging
 
 import nest_asyncio
 
@@ -39,9 +38,7 @@ def agent_chat_completion(user_prompt: str, system_prompt: str, json_mode: bool 
     async def _query():
         from claude_agent_sdk import ResultMessage
         async for message in query(prompt=full_prompt, options=options):
-            logger.debug("SDK message type: %s", type(message).__name__)
             if isinstance(message, ResultMessage):
-                logger.debug("ResultMessage is_error=%s result=%r", message.is_error, message.result[:100])
                 if message.is_error:
                     raise RuntimeError(f"Claude Agent SDK error: {message.result}")
                 result_parts.append(message.result)
