@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 
+import nest_asyncio
+
 ALLOWED_TOOLS = ["WebSearch", "WebFetch"]
 
 
@@ -38,5 +40,6 @@ def agent_chat_completion(user_prompt: str, system_prompt: str, json_mode: bool 
                     if hasattr(block, "text"):
                         result_parts.append(block.text)
 
+    nest_asyncio.apply()
     asyncio.run(_query())
     return "".join(result_parts)
