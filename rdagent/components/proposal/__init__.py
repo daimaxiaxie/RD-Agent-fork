@@ -26,7 +26,7 @@ def _chat_completion(user_prompt: str, system_prompt: str, json_mode: bool = Fal
         from rdagent.components.proposal.agent_call import agent_chat_completion
         return agent_chat_completion(user_prompt, system_prompt, json_mode=json_mode)
     return APIBackend().build_messages_and_create_chat_completion(
-        user_prompt, system_prompt, json_mode=json_mode
+        user_prompt, system_prompt, json_mode=json_mode, json_target_type=dict[str, str]
     )
 
 
