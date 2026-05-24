@@ -1,3 +1,4 @@
+import logging
 from abc import abstractmethod
 from typing import Tuple
 
@@ -14,11 +15,14 @@ from rdagent.oai.llm_utils import APIBackend
 from rdagent.utils.agent.tpl import T
 from rdagent.utils.workflow import wait_retry
 
+logger = logging.getLogger(__name__)
+
 
 def _chat_completion(user_prompt: str, system_prompt: str, json_mode: bool = False) -> str:
     from rdagent.components.proposal.agent_conf import AGENT_TOOL_SETTINGS
 
     if AGENT_TOOL_SETTINGS.enable:
+        logger.info("Using Claude Agent SDK for hypothesis generation (with tools: WebSearch, WebFetch)")
         from rdagent.components.proposal.agent_call import agent_chat_completion
         return agent_chat_completion(user_prompt, system_prompt, json_mode=json_mode)
     return APIBackend().build_messages_and_create_chat_completion(
