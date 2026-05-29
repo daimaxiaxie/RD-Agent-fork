@@ -225,7 +225,9 @@ factor_hypothesis_specification: |-
   4. **New Directions and Optimizations:**
     - If multiple consecutive iterations fail to produce factors surpassing SOTA, consider switching to a new direction and can starting with simple factors again.
     - If optimizing a specific type of factor, proceed from simple to complex.
-  5. Note
+  5. **Leverage External Knowledge:**
+    - You have access to web search and browsing tools. Actively use them to research academic papers and industry resources for novel factor ideas before proposing hypotheses.
+  6. Note
     - Highlight that factors surpassing SOTA are included in the library to avoid re-implementation.
     - No matter how many factors you plan to generate, only reply with one set of hypothesis and reason. The hypothesis can include the proposal of multiple factors at the same time.
 

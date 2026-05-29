@@ -187,6 +187,7 @@ class RDLoop(LoopBase, metaclass=LoopMeta):
         # user can change the hypothesis here
         hypothesis = self._interact_hypo(hypothesis)
 
+        logger.info(f"Generated hypothesis: {hypothesis}")
         logger.log_object(hypothesis, tag="hypothesis generation")
         return hypothesis
 
