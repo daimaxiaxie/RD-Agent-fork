@@ -25,7 +25,7 @@ binance_factor_interface: |-
   - Index: pd.MultiIndex with two levels:
     - "datetime" (level 0): Timestamp type, {{ freq_desc }} frequency (e.g., Timestamp('2024-01-01 00:00:00'))
     - "instrument" (level 1): str type, cryptocurrency symbol (e.g., 'BTCUSDT', 'ETHUSDT')
-  - Columns: $open (float64), $high (float64), $low (float64), $close (float64), $volume (float64), $quote_volume (float64), $count (float64), $taker_buy_vol (float64), $taker_buy_quote_vol (float64), $taker_sell_vol (float64), $taker_sell_quote_vol (float64), $oi (float64), $oi_value (float64), $top_ls_pos (float64), $top_ls_acc (float64), $global_ls (float64), $taker_ls (float64), $funding_rate (float64)
+  - Columns: $open (float64), $high (float64), $low (float64), $close (float64), $volume (float64), $quote_volume (float64), $count (float64), $vwap (float64), $taker_buy_vol (float64), $taker_buy_quote_vol (float64), $taker_sell_vol (float64), $taker_sell_quote_vol (float64), $oi (float64), $oi_value (float64), $top_ls_pos (float64), $top_ls_acc (float64), $global_ls (float64), $taker_ls (float64), $funding_rate (float64), $mark_close (float64), $basis (float64)
 
   OUTPUT DATA FORMAT: The output "result.h5" must have the same MultiIndex structure:
   - Index: pd.MultiIndex with levels ("datetime", "instrument") — datetime is Timestamp, instrument is str

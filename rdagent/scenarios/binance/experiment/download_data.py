@@ -11,7 +11,9 @@ Output files:
 Index:  MultiIndex (datetime, instrument)
 Columns: $open, $high, $low, $close, $volume, $quote_volume, $count,
          $taker_buy_vol, $taker_buy_quote_vol, $taker_sell_vol, $taker_sell_quote_vol,
-         $oi, $oi_value, $top_ls_pos, $top_ls_acc, $global_ls, $taker_ls, $funding_rate
+         $vwap,
+         $oi, $oi_value, $top_ls_pos, $top_ls_acc, $global_ls, $taker_ls, $funding_rate,
+         $mark_close, $basis
 
 Usage:
     python download_data.py                          # default: 1h klines + metrics
@@ -137,6 +139,8 @@ def _download_klines(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp, 
     # Derive taker sell side from total - taker buy
     full["$taker_sell_vol"] = full["$volume"] - full["$taker_buy_vol"]
     full["$taker_sell_quote_vol"] = full["$quote_volume"] - full["$taker_buy_quote_vol"]
+    # VWAP = quote_volume / volume (volume-weighted average price, no look-ahead)
+    full["$vwap"] = full["$quote_volume"] / full["$volume"].replace(0, np.nan)
     return full.loc[start_dt:end_dt]
 
 
@@ -254,6 +258,42 @@ def _download_funding_rate(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Times
     return result.loc[start_dt:end_dt]
 
 
+def _download_mark_price(symbol: str, start_dt: pd.Timestamp, end_dt: pd.Timestamp, interval: str) -> pd.DataFrame | None:
+    """Download monthly mark price klines (same interval as regular klines).
+
+    Mark price is the exchange's fair price used for liquidation calculations,
+    based on the index price and a decaying median of recent premium.
+    Returns DataFrame with columns: $mark_close, $basis.
+    No look-ahead: mark price is the exchange's published fair price at bar close.
+    """
+    chunks = []
+    current = start_dt.replace(day=1)
+    while current <= end_dt:
+        filename = f"{symbol}-{interval}-{current.strftime('%Y-%m')}.zip"
+        url = f"{BASE_URL}/data/futures/um/monthly/markPriceKlines/{symbol}/{interval}/{filename}"
+        df = _download_zip(url)
+        if df is None:
+            log.warning("  %s markPrice %s: not available, skipping", symbol, current.strftime("%Y-%m"))
+            current += pd.DateOffset(months=1)
+            continue
+        chunks.append(df)
+        current += pd.DateOffset(months=1)
+
+    if not chunks:
+        log.warning("  %s markPrice: no data available", symbol)
+        return None
+
+    full = pd.concat(chunks, ignore_index=True)
+    full.columns = [f"col_{i}" for i in range(len(full.columns))]
+    full["datetime"] = pd.to_datetime(full["col_0"], unit="ms", utc=True).dt.tz_localize(None)
+    full = full.rename(columns={"col_4": "$mark_close"})
+    full = full.set_index("datetime").sort_index()
+    full = full[~full.index.duplicated(keep="first")]
+    result = full[["$mark_close"]].astype(np.float64)
+
+    return result.loc[start_dt:end_dt]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download Binance perpetual futures klines + metrics -> pv.h5")
     parser.add_argument("--start", default="2021-01-01")
@@ -314,6 +354,9 @@ def main():
             # Download funding rate
             funding_df = _download_funding_rate(symbol, start_dt, end_dt, args.interval)
 
+            # Download mark price
+            mark_df = _download_mark_price(symbol, start_dt, end_dt, args.interval)
+
             # Align to kline datetime index
             extra_cols = []
             if metrics_df is not None and not metrics_df.empty:
@@ -322,9 +365,19 @@ def main():
             if funding_df is not None and not funding_df.empty:
                 funding_aligned = funding_df.reindex(kline_idx)
                 extra_cols.append(funding_aligned)
+            if mark_df is not None and not mark_df.empty:
+                mark_aligned = mark_df.reindex(kline_idx)
+                extra_cols.append(mark_aligned)
 
             if extra_cols:
                 extras = pd.concat(extra_cols, axis=1)
+                # Derive $basis = ($mark_close - $close) / $close (premium/discount signal)
+                # Both kline_df and extras share the same MultiIndex (datetime, instrument)
+                # for a single symbol, so .values alignment is safe here.
+                if "$mark_close" in extras.columns:
+                    close_vals = kline_df["$close"].values
+                    mark_vals = extras["$mark_close"].values
+                    extras["$basis"] = (mark_vals - close_vals) / np.where(close_vals != 0, close_vals, np.nan)
                 extras["instrument"] = symbol
                 extras = extras.set_index([extras.index, "instrument"])
                 extras.index.names = ["datetime", "instrument"]

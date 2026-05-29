@@ -53,6 +53,15 @@ $global_ls: the ratio of all traders' long vs short accounts. Values > 1 indicat
 ## Taker buy/sell volume ratio
 $taker_ls: the ratio of taker buy volume vs taker sell volume. Values > 1 indicate aggressive buying (takers buying); < 1 indicate aggressive selling (takers selling).
 
+## Mark price
+$mark_close: the mark price (fair price used by the exchange for liquidation calculations) at the end of the bar. This is different from $close (last trade price). The mark price is computed from the index price and recent premium median, and represents the exchange's fair valuation.
+
+## Basis (premium/discount signal)
+$basis: (mark_close - close) / close. This measures the premium or discount of the futures contract relative to the mark price. Positive basis means the futures are trading above the fair price (bullish premium); negative means below (bearish discount). This is a crypto-specific signal derived from the futures market structure.
+
+## VWAP (volume-weighted average price)
+$vwap: quote_volume / volume. The volume-weighted average price for the bar, computed from the total traded notional divided by total traded base units. More robust than simple average price, often used as a benchmark for execution quality.
+
 ## Funding rate
 $funding_rate: the perpetual futures funding rate. Positive values mean longs pay shorts (bullish sentiment costs); negative values mean shorts pay longs (bearish sentiment costs). Updated every 8 hours, forward-filled to bar frequency.
 
