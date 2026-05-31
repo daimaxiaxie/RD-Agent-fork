@@ -18,6 +18,8 @@ Columns: $open, $high, $low, $close, $volume, $quote_volume, $count,
 Usage:
     python download_data.py                          # default: 1h klines + metrics
     python download_data.py --interval 4h            # 4h klines + metrics
+    python download_data.py --interval 8h            # 8h klines + metrics
+    python download_data.py --interval 12h           # 12h klines + metrics
     python download_data.py --start 2021-01-01 --end 2024-12-31
     python download_data.py --no-metrics              # klines only (old behavior)
     # After download, generate Qlib binary data separately:
@@ -77,7 +79,7 @@ METRICS_COL_MAP = {
 }
 
 # Interval to resample rule mapping for metrics (5min source → target)
-INTERVAL_RESAMPLE = {"1h": "1h", "4h": "4h", "1d": "1D"}
+INTERVAL_RESAMPLE = {"1h": "1h", "4h": "4h", "8h": "8h", "12h": "12h", "1d": "1D"}
 
 
 def _download_zip(url: str, timeout: int = 60, retries: int = 2) -> pd.DataFrame | None:
@@ -304,7 +306,7 @@ def main():
     parser = argparse.ArgumentParser(description="Download Binance perpetual futures klines + metrics -> pv.h5")
     parser.add_argument("--start", default="2021-01-01")
     parser.add_argument("--end", default="2025-12-31")
-    parser.add_argument("--interval", default="1h", choices=["1m", "5m", "15m", "1h", "4h", "1d"],
+    parser.add_argument("--interval", default="1h", choices=["1m", "5m", "15m", "1h", "4h", "8h", "12h", "1d"],
                         help="Binance kline interval (default: 1h)")
     parser.add_argument("--output", help="Output path (default: factor_data_template/pv_all.h5)")
     parser.add_argument("--debug-output", help="Debug path (default: factor_data_template/pv_debug.h5)")
@@ -415,7 +417,7 @@ def main():
 
         all_frames = merged_frames
     elif include_metrics:
-        log.warning("Metrics download not supported for interval=%s (only 1h/4h/1d)", args.interval)
+        log.warning("Metrics download not supported for interval=%s (only 1h/4h/8h/12h/1d)", args.interval)
 
     combined = pd.concat(all_frames).sort_index().dropna(how="all")
 
