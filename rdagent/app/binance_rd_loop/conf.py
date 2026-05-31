@@ -9,12 +9,16 @@ from rdagent.components.workflow.conf import BasePropSetting
 FREQ_TO_BINANCE_INTERVAL = {
     "60min": "1h",
     "240min": "4h",
+    "480min": "8h",
+    "720min": "12h",
 }
 
 # Mapping from qlib freq string to human-readable description
 FREQ_TO_DESC = {
     "60min": "1-hourly",
     "240min": "4-hourly",
+    "480min": "8-hourly",
+    "720min": "12-hourly",
 }
 
 
